@@ -8,10 +8,13 @@ import {
   serializerCompiler,
   validatorCompiler,
 } from "fastify-type-provider-zod";
+import { installAuth } from "./auth/plugin.js";
+import { tokenVerifierFromConfig, type TokenVerifier } from "./auth/tokens.js";
 import type { Config } from "./config.js";
 import type { Db } from "./db/index.js";
 import { AppError, type ErrorBody } from "./errors.js";
 import { healthRoutes } from "./routes/health.js";
+import { meRoutes } from "./routes/me.js";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -23,6 +26,8 @@ declare module "fastify" {
 export interface AppDeps {
   config: Config;
   db: Db;
+  /** Defaults to one built from config; tests pass their own. */
+  tokenVerifier?: TokenVerifier;
 }
 
 // Accept a caller-supplied request id (e.g. from a load balancer) only if it
@@ -40,7 +45,7 @@ function loggerOptions(config: Config) {
   return base;
 }
 
-export async function buildApp({ config, db }: AppDeps): Promise<FastifyInstance> {
+export async function buildApp({ config, db, tokenVerifier }: AppDeps): Promise<FastifyInstance> {
   const app = Fastify({
     logger: config.APP_ENV === "test" ? false : loggerOptions(config),
     genReqId: (req) => {
@@ -69,6 +74,7 @@ export async function buildApp({ config, db }: AppDeps): Promise<FastifyInstance
       return send(400, "VALIDATION_ERROR", "The request is invalid", err.validation);
     }
     if (err instanceof AppError) {
+      if (err.statusCode === 401) reply.header("www-authenticate", "Bearer");
       return send(err.statusCode, err.code, err.message, err.details);
     }
     // Errors Fastify raises itself for bad input (malformed JSON, body too large, ...).
@@ -99,7 +105,10 @@ export async function buildApp({ config, db }: AppDeps): Promise<FastifyInstance
     await app.register(swaggerUi, { routePrefix: "/docs" });
   }
 
+  installAuth(app, tokenVerifier ?? tokenVerifierFromConfig(config));
+
   await app.register(healthRoutes);
+  await app.register(meRoutes);
 
   return app;
 }

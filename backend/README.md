@@ -26,6 +26,20 @@ Already have Postgres? Skip `db:up`, create two empty databases (`dettypot` and
 - Interactive API docs: http://localhost:3000/docs (when `ENABLE_DOCS=true`)
 - Liveness: `GET /health`, readiness (checks the database): `GET /health/ready`
 
+### Signing in locally
+
+The API accepts sign-in tokens from an OpenID Connect provider (Cognito or
+similar). On your machine you don't need one:
+
+```sh
+npm run dev:token -- ada@example.com --name "Ada Obi"   # prints a token
+```
+
+The first run creates a local signing key in `.dev-auth/` (git-ignored); restart
+`npm run dev` once so the API picks it up. Then open http://localhost:3000/docs,
+click **Authorize**, paste the token, and try `GET /me`. Add `--unverified` to act
+as someone whose email isn't verified yet. This only works with `APP_ENV=local`.
+
 ## Test it
 
 ```sh
@@ -49,12 +63,31 @@ The test database name must end in `_test`; the suite refuses to wipe anything e
 
 ```
 src/config.ts       validated environment settings
-src/app.ts          builds the Fastify app (errors, request ids, docs)
+src/app.ts          builds the Fastify app (errors, request ids, docs, sign-in)
+src/auth/           token verification, the pot permissions table, authorizePot()
+src/users/          creating and syncing users from sign-in, profiles
 src/routes/         HTTP routes, one file per area
+scripts/            developer tools (dev:token)
 src/db/             Kysely client, migration runner, generated table types
 migrations/         forward-only .sql files, run in filename order
 test/               Vitest suites (real Postgres, no mocks for the database)
 ```
+
+## Who can do what
+
+Every pot route calls `authorizePot(db, user, potId, action)` before doing
+anything. It reads one table, [`src/auth/permissions.ts`](src/auth/permissions.ts):
+
+| Action | Organiser | Co-organiser | Member |
+|---|:-:|:-:|:-:|
+| View the pot, its ledger; vote on approvals | ✓ | ✓ | ✓ |
+| Contribute (verified email required) | ✓ | ✓ | ✓ |
+| Edit details, move the stage, manage invites, approve joins, remove members, select the venue | ✓ | ✓ | |
+| Cancel the pot (refunds everyone), change approval settings, nominate co-organisers | ✓ | | |
+| Request a payout (verified email required) | ✓ | | |
+
+Co-organisers can only remove plain members; nobody can remove the organiser.
+People who aren't active members get `404 Pot not found`, so pot ids can't be probed.
 
 ## Data rules enforced by the database
 

@@ -10,6 +10,9 @@ coverage/
 .env.*
 !.env.example
 
+# Local sign-in keys from `npm run dev:token`
+.dev-auth/
+
 # OS and editors
 .DS_Store
 .vscode/

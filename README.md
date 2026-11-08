@@ -25,8 +25,10 @@ Early build. Done so far:
 - Database schema for users, pots and their stages, members and roles, invites,
   co-organiser approvals, notifications, an append-only audit log, and a
   double-entry ledger that refuses to let a pot's balance go negative.
+- Sign-in with any OpenID Connect provider, accounts created on first sign-in,
+  profiles, and a single permissions table for what each role can do in a pot.
 
-Next: sign-in and roles, then pots and invites, then payments.
+Next: pots and invites, then payments.
 
 ## Getting started
 
