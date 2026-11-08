@@ -102,6 +102,8 @@ const potSummary = z.object({
   memberCount: z.number().int(),
   /** Confirmed money only; payments in progress are not counted. */
   raisedKobo: z.number().int(),
+  /** Payments started but not confirmed yet, shown separately. */
+  inProgressKobo: z.number().int(),
   myPaidKobo: z.number().int(),
   myOwedKobo: z.number().int(),
 });
@@ -143,6 +145,7 @@ const toSummary = (v: PotView): PotSummary => ({
   myRole: v.myRole,
   memberCount: v.memberCount,
   raisedKobo: v.raisedKobo,
+  inProgressKobo: v.inProgressKobo,
   myPaidKobo: v.myPaidKobo,
   myOwedKobo: v.myOwedKobo,
 });

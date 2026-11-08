@@ -3,6 +3,9 @@ import { expireDueApprovals } from "./approvals/service.js";
 import { loadConfig } from "./config.js";
 import { createDb } from "./db/index.js";
 import { LogEmailSender } from "./notifications/email.js";
+import { HttpPaystackClient } from "./payments/paystack.js";
+import { expireStalePayments } from "./payments/service.js";
+import { processPendingWebhooks } from "./payments/webhooks.js";
 import { deliverEmails, sendDeadlinePassedAlerts, sendDeadlineWarnings, sendPaymentReminders } from "./worker/tasks.js";
 
 /**
@@ -16,10 +19,18 @@ const log = pino({
 });
 const db = createDb(config.DATABASE_URL);
 const sender = new LogEmailSender(log, config.EMAIL_FROM);
+const paystack = config.PAYSTACK_SECRET_KEY ? new HttpPaystackClient(config.PAYSTACK_SECRET_KEY, config.PAYSTACK_BASE_URL) : null;
 
 const TICK_MS = 15_000;
 
 const jobs: [string, () => Promise<unknown>][] = [
+  // Money first: confirm payments before anything reads balances.
+  ...(paystack
+    ? ([
+        ["paystack webhooks", () => processPendingWebhooks(db, paystack)],
+        ["stale payments", () => expireStalePayments(db, paystack)],
+      ] as [string, () => Promise<unknown>][])
+    : []),
   ["expire approvals", () => expireDueApprovals(db)],
   ["deadline passed", () => sendDeadlinePassedAlerts(db)],
   ["deadline warnings", () => sendDeadlineWarnings(db)],

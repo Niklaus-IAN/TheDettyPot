@@ -57,6 +57,19 @@ export const NOTIFICATIONS = {
         : `Payouts from ${potName(c)} no longer need members' approval`,
   },
 
+  // ─── Payments ───
+  payment_received: {
+    email: true,
+    title: (c) => `We received your ${naira(c.payload.shareKobo)} for ${potName(c)}`,
+    body: (c) => `Service fee ${naira(c.payload.feeKobo)}, total charged ${naira(c.payload.totalKobo)}. The fee isn't refundable.`,
+  },
+  contribution_received: { email: false, title: (c) => `${who(c)} paid ${naira(c.payload.amountKobo)} into ${potName(c)}` },
+  payment_review: {
+    email: true,
+    title: (c) => `We're checking your payment for ${potName(c)}`,
+    body: () => "Something about it didn't match what we expected. Our team will look at it and get back to you. Your money is safe.",
+  },
+
   // ─── Money reminders ───
   reminder: {
     email: true,

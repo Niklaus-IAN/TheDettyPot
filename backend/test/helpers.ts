@@ -3,6 +3,7 @@ import type { FastifyInstance } from "fastify";
 import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT, type CryptoKey } from "jose";
 import { buildApp } from "../src/app.js";
 import { createTokenVerifier } from "../src/auth/tokens.js";
+import type { PaystackClient } from "../src/payments/paystack.js";
 import { loadConfig, type Config } from "../src/config.js";
 import { createDb, type Db } from "../src/db/index.js";
 
@@ -56,7 +57,10 @@ export interface TestApp {
 }
 
 /** Builds the real app against the test database. Call close() in afterAll. */
-export async function makeTestApp(overrides: Partial<NodeJS.ProcessEnv> = {}): Promise<TestApp> {
+export async function makeTestApp(
+  overrides: Partial<NodeJS.ProcessEnv> = {},
+  deps: { paystack?: PaystackClient | null } = {},
+): Promise<TestApp> {
   const config = loadConfig({
     APP_ENV: "test",
     DATABASE_URL: TEST_DATABASE_URL,
@@ -73,7 +77,7 @@ export async function makeTestApp(overrides: Partial<NodeJS.ProcessEnv> = {}): P
     audience: config.AUTH_AUDIENCE,
     keys: createLocalJWKSet(testJwks),
   });
-  const app = await buildApp({ config, db, tokenVerifier });
+  const app = await buildApp({ config, db, tokenVerifier, paystack: deps.paystack ?? null });
   await app.ready();
   return {
     app,

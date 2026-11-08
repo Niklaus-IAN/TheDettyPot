@@ -6,7 +6,7 @@ import type { Database, Db } from "../db/index.js";
 import { badRequest, conflict } from "../errors.js";
 import { notifyPotMembers } from "../notifications/service.js";
 import type { User } from "../users/service.js";
-import { heldBalance, paidByMember, totalRaised } from "./money.js";
+import { heldBalance, inProgressByPot, paidByMember, totalRaised } from "./money.js";
 
 export type PotRow = Selectable<Database["pots"]>;
 
@@ -69,6 +69,8 @@ export interface PotView {
   myRole: PotRole;
   memberCount: number;
   raisedKobo: number;
+  /** Payments started but not yet confirmed; never part of raisedKobo. */
+  inProgressKobo: number;
   myPaidKobo: number;
   myOwedKobo: number;
 }
@@ -139,7 +141,7 @@ export async function createPot(db: Db, actor: Actor, input: CreatePotInput): Pr
     return pot;
   });
 
-  return { pot, myRole: "organiser", memberCount: 1, raisedKobo: 0, myPaidKobo: 0, myOwedKobo: pot.share_kobo };
+  return { pot, myRole: "organiser", memberCount: 1, raisedKobo: 0, inProgressKobo: 0, myPaidKobo: 0, myOwedKobo: pot.share_kobo };
 }
 
 const STAGE_ORDER: Record<Stage, number> = {
@@ -174,6 +176,10 @@ export async function listMyPots(db: Db, user: User): Promise<PotView[]> {
     db,
     rows.map((r) => r.id),
   );
+  const inProgress = await inProgressByPot(
+    db,
+    rows.map((r) => r.id),
+  );
 
   return rows
     .map(({ my_role, member_count, ...pot }) => {
@@ -184,6 +190,7 @@ export async function listMyPots(db: Db, user: User): Promise<PotView[]> {
         myRole: my_role as PotRole,
         memberCount: Number(member_count ?? 0),
         raisedKobo: totalRaised(potPaid),
+        inProgressKobo: inProgress.get(pot.id) ?? 0,
         myPaidKobo: myPaid,
         myOwedKobo: owed(pot, myPaid),
       };
@@ -216,6 +223,7 @@ export async function getPot(db: Db, user: User, potId: string): Promise<PotDeta
     myRole: access.role,
     memberCount: memberRows.length,
     raisedKobo: totalRaised(potPaid),
+    inProgressKobo: (await inProgressByPot(db, [potId])).get(potId) ?? 0,
     myPaidKobo: myPaid,
     myOwedKobo: owed(pot, myPaid),
     members: memberRows.map((m) => ({

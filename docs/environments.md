@@ -76,4 +76,7 @@ These come with the AWS infrastructure step and need repository-admin access:
       over from the previous version of the app.
 - [ ] Separate database roles for migrations and for the running app.
 - [ ] Amazon SES: verified sending domain, `EMAIL_PROVIDER=ses`, bounce handling.
+- [ ] Paystack: test secret key in dev and staging, live key in prod only (the
+      app refuses any other combination). Webhook URL per environment set in the
+      Paystack dashboard: `https://<api-host>/webhooks/paystack`.
 - [ ] Worker service running `npm run start:worker` next to the API.
