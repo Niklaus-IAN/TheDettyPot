@@ -103,11 +103,12 @@ export async function nominateCoOrganiser(db: Db, actor: Actor, potId: string, n
     if (CLOSED.includes(pot.stage as Stage)) throw conflict("POT_CLOSED", `This pot is ${pot.stage}`);
 
     const nominee = await trx
-      .selectFrom("pot_members")
-      .select("role")
-      .where("pot_id", "=", potId)
-      .where("user_id", "=", nomineeId)
-      .where("status", "=", "active")
+      .selectFrom("pot_members as m")
+      .innerJoin("users as u", "u.id", "m.user_id")
+      .select(["m.role", "u.full_name"])
+      .where("m.pot_id", "=", potId)
+      .where("m.user_id", "=", nomineeId)
+      .where("m.status", "=", "active")
       .executeTakeFirst();
     if (!nominee) throw notFound("Member not found");
     if (nominee.role !== "member") throw conflict("ALREADY_CO_ORGANISER", "This person already helps run the pot");
@@ -163,7 +164,7 @@ export async function nominateCoOrganiser(db: Db, actor: Actor, potId: string, n
         trx,
         potId,
         "approval_requested",
-        { requestId: request.id, kind: request.kind, subjectUserId: nomineeId },
+        { requestId: request.id, kind: request.kind, subjectUserId: nomineeId, subjectName: nominee.full_name },
         { exceptUserId: actor.user.id },
       );
     }

@@ -26,6 +26,34 @@ Already have Postgres? Skip `db:up`, create two empty databases (`dettypot` and
 - Interactive API docs: http://localhost:3000/docs (when `ENABLE_DOCS=true`)
 - Liveness: `GET /health`, readiness (checks the database): `GET /health/ready`
 
+### The background worker
+
+Payment reminders, deadline alerts, email delivery and closing expired votes run
+in a separate process:
+
+```sh
+npm run worker          # alongside `npm run dev`
+```
+
+Locally, emails are written to the worker's log instead of being sent
+(`EMAIL_PROVIDER=log`). Every job is safe to run on several workers at once.
+
+- Reminders go to members who still owe money, at each member's chosen frequency
+  (daily, every 3 days, weekly, or off), only between 09:00 and 20:00 local time.
+- Two days before the deadline, members who still owe get a warning. If the
+  deadline passes without the target met, the organisers are asked to decide.
+- Failed emails are retried after 1, 5, 30, 120 and 360 minutes, then marked failed.
+
+### Admin access
+
+There is no API for granting admin rights. Someone with database access runs:
+
+```sh
+npm run admin:grant -- support@example.com      # add --revoke to remove
+```
+
+The person must have signed in once first. Admin routes answer `404` to everyone else.
+
 ### Signing in locally
 
 The API accepts sign-in tokens from an OpenID Connect provider (Cognito or
@@ -95,6 +123,11 @@ All amounts are integers in **kobo** (₦1 = 100 kobo). Full, interactive refere
 | `POST /pots/:id/co-organisers` | Nominate a co-organiser; members vote |
 | `GET /pots/:id/approvals`, `…/:requestId/votes`, `…/cancel` | See, vote on, or withdraw decisions |
 | `POST /pots/:id/members/:userId/demote` | Take co-organiser rights back (no vote needed) |
+| `POST /pots/:id/invites/email` | Invite someone by email, with or without an account (single use, tied to that verified address) |
+| `GET /notifications`, `POST /notifications/read` | Your notifications with ready-to-show text, and marking them read |
+| `POST /waitlist` | The website's waitlist form (no sign-in) |
+| `GET /admin/pots`, `/admin/pots/:id`, `/admin/users`, `/admin/audit` | Support tools: search, a pot's full record, the audit log (admins only) |
+| `POST /admin/pots/:id/freeze`, `…/unfreeze` | Pause a pot: read-only for its members until lifted |
 
 Stage conditions: collecting needs a future funding deadline; funded needs the
 target met, or, after the deadline, the organiser choosing to go ahead with what

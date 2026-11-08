@@ -63,6 +63,8 @@ export async function makeTestApp(overrides: Partial<NodeJS.ProcessEnv> = {}): P
     LOG_LEVEL: "silent",
     AUTH_ISSUER: TEST_ISSUER,
     AUTH_AUDIENCE: TEST_AUDIENCE,
+    // Tests send many requests from one address; the limiter has its own tests.
+    RATE_LIMIT_ENABLED: "false",
     ...overrides,
   });
   const db = createDb(config.DATABASE_URL);

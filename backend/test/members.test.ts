@@ -139,6 +139,15 @@ describe("joining with a link", () => {
     expect((await h.call(newcomer, "GET", `/pots/${pot.id}`)).statusCode).toBe(404);
   });
 
+  it("sends existing members to their pot even after the link is used up or revoked", async () => {
+    const { pot, organiser } = await scene();
+    const invite = await h.createInvite(organiser, pot.id, { maxUses: 1 });
+    const newcomer = await h.signIn();
+    await joinWith(newcomer, invite.token);
+    await h.call(organiser, "POST", `/pots/${pot.id}/invites/${invite.id}/revoke`);
+    expect((await joinWith(newcomer, invite.token)).json()).toEqual({ potId: pot.id, status: "active", alreadyMember: true });
+  });
+
   it("respects the link's use limit", async () => {
     const { pot, organiser } = await scene();
     const invite = await h.createInvite(organiser, pot.id, { maxUses: 1 });

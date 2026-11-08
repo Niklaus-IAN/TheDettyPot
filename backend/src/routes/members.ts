@@ -12,6 +12,7 @@ import {
 } from "../approvals/service.js";
 import { requireUser } from "../auth/plugin.js";
 import {
+  createEmailInvite,
   createInviteLink,
   decideJoinRequest,
   inviteIsActive,
@@ -153,6 +154,24 @@ export const memberRoutes: FastifyPluginAsyncZod = async (app) => {
     },
   );
 
+  app.post(
+    "/pots/:potId/invites/email",
+    {
+      ...auth,
+      config: { rateLimit: { max: 30, timeWindow: "1 hour" } },
+      schema: {
+        ...doc("invites", "Invite someone by email, with or without an account"),
+        params: potParams,
+        body: z.strictObject({ email: z.email().max(254) }),
+        response: { 201: inviteSchema },
+      },
+    },
+    async (req, reply) => {
+      const invite = await createEmailInvite(app.db, actorOf(req), req.params.potId, req.body.email.toLowerCase(), app.config.WEB_BASE_URL);
+      return reply.status(201).send(toInvite(invite, req.user!.full_name));
+    },
+  );
+
   app.get(
     "/pots/:potId/invites",
     { ...auth, schema: { ...doc("invites", "A pot's invites (tokens are never shown again)"), params: potParams, response: { 200: z.array(inviteSchema) } } },
@@ -171,7 +190,7 @@ export const memberRoutes: FastifyPluginAsyncZod = async (app) => {
   // ─── Joining ───
   app.get(
     "/invites/:token",
-    { schema: { ...doc("invites", "Preview a pot from its invite link (no sign-in needed)", false), params: tokenParams, response: { 200: previewSchema } } },
+    { config: { rateLimit: { max: 60, timeWindow: "1 minute" } }, schema: { ...doc("invites", "Preview a pot from its invite link (no sign-in needed)", false), params: tokenParams, response: { 200: previewSchema } } },
     async (req) => {
       const p = await previewInvite(app.db, req.params.token);
       return {
@@ -198,6 +217,7 @@ export const memberRoutes: FastifyPluginAsyncZod = async (app) => {
     "/invites/:token/join",
     {
       ...auth,
+      config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
       schema: {
         ...doc("invites", "Join a pot with an invite link"),
         params: tokenParams,
