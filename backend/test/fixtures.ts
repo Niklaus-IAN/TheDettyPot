@@ -77,16 +77,20 @@ export async function ledgerAccount(db: Db, kind: string, potId: string | null =
 export interface PostInput {
   kind?: string;
   potId?: string | null;
+  memberUserId?: string | null;
   key?: string;
   entries: { account: LedgerAccount; amount: number }[];
 }
 
 /** Writes one ledger transaction and its entries in a single DB transaction. */
-export function postLedger(db: Db, { kind = "adjustment", potId = null, key = randomUUID(), entries }: PostInput) {
+export function postLedger(
+  db: Db,
+  { kind = "adjustment", potId = null, memberUserId = null, key = randomUUID(), entries }: PostInput,
+) {
   return db.transaction().execute(async (trx) => {
     const txn = await trx
       .insertInto("ledger_transactions")
-      .values({ kind, pot_id: potId, idempotency_key: key, description: "test movement" })
+      .values({ kind, pot_id: potId, member_user_id: memberUserId, idempotency_key: key, description: "test movement" })
       .returning("id")
       .executeTakeFirstOrThrow();
     if (entries.length > 0) {
@@ -106,4 +110,34 @@ export async function balanceOf(db: Db, account: LedgerAccount): Promise<number>
     .where("account_id", "=", account.id)
     .executeTakeFirstOrThrow();
   return row.balance_kobo ?? 0;
+}
+
+/** A member's confirmed contribution, as the money stage will record it. */
+export async function recordContribution(db: Db, potId: string, userId: string, amount: number) {
+  const available = await ledgerAccount(db, "pot_available", potId);
+  const external = await ledgerAccount(db, "external");
+  return postLedger(db, {
+    kind: "contribution",
+    potId,
+    memberUserId: userId,
+    entries: [
+      { account: external, amount: -amount },
+      { account: available, amount },
+    ],
+  });
+}
+
+/** Money returned to a member from the pot. */
+export async function recordRefund(db: Db, potId: string, userId: string, amount: number) {
+  const available = await ledgerAccount(db, "pot_available", potId);
+  const external = await ledgerAccount(db, "external");
+  return postLedger(db, {
+    kind: "refund",
+    potId,
+    memberUserId: userId,
+    entries: [
+      { account: available, amount: -amount },
+      { account: external, amount },
+    ],
+  });
 }
