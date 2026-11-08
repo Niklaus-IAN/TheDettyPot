@@ -30,6 +30,8 @@ export const POT_PERMISSIONS = {
   "member.approve_join": { roles: ORGANISERS },
   "member.remove": { roles: ORGANISERS },
   "co_organiser.nominate": { roles: ORGANISER },
+  // Taking co-organiser rights back needs no vote: it only reduces power.
+  "co_organiser.demote": { roles: ORGANISER },
   "approval.vote": { roles: ANY },
   "venue.select": { roles: ORGANISERS },
   "ledger.view": { roles: ANY },

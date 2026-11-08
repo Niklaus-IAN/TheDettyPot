@@ -23,6 +23,7 @@ const EXPECTED: Record<PotAction, string> = {
   "member.approve_join": "OC",
   "member.remove": "OC",
   "co_organiser.nominate": "O",
+  "co_organiser.demote": "O",
   "approval.vote": "OCM",
   "venue.select": "OC",
   "ledger.view": "OCM",

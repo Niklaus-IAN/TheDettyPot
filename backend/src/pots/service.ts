@@ -19,7 +19,9 @@ export type AdvanceTo = "collecting" | "funded" | "confirmed" | "completed";
 export const MAX_BUDGET_KOBO = 100_000_000 * 100;
 
 const EDITABLE: readonly Stage[] = ["planning", "collecting"];
-const CLOSED: readonly Stage[] = ["completed", "cancelled"];
+export const CLOSED: readonly Stage[] = ["completed", "cancelled"];
+/** People can join while the plan and the money are still open. */
+export const JOINABLE: readonly Stage[] = ["planning", "collecting"];
 const NEXT: Record<AdvanceTo, Stage> = {
   collecting: "planning",
   funded: "collecting",
@@ -99,7 +101,7 @@ function checkDates(
 const owed = (pot: PotRow, paid: number) =>
   CLOSED.includes(pot.stage as Stage) ? 0 : Math.max(0, pot.share_kobo - paid);
 
-async function lockPot(db: Db, potId: string): Promise<PotRow> {
+export async function lockPot(db: Db, potId: string): Promise<PotRow> {
   return db.selectFrom("pots").selectAll().where("id", "=", potId).forUpdate().executeTakeFirstOrThrow();
 }
 

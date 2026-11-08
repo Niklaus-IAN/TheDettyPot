@@ -31,7 +31,10 @@ Early build. Done so far:
 - Pots API: create, edit, dashboard, pot page with who has paid, settings, and
   the stage lifecycle (planning → collecting → funded → confirmed → completed).
 
-Next: invites and joining, then notifications and admin, then payments.
+- Invites and membership: invite links with a public preview, joining with
+  optional approval, leaving and removal, and co-organisers chosen by member vote.
+
+Next: notifications and admin, then payments.
 
 ## Getting started
 
