@@ -1,0 +1,18 @@
+{
+  "dialect": "postgres",
+  "outFile": "src/db/types.ts",
+  "excludePattern": "kysely_*",
+  "typeMapping": {
+    "int8": "number",
+    "date": "string",
+    "xid8": "string"
+  },
+  "overrides": {
+    "columns": {
+      "pots.share_kobo": "ColumnType<number, never, never>",
+      "ledger_transactions.db_xact_id": "ColumnType<string, never, never>",
+      "ledger_entries.id": "ColumnType<number, never, never>",
+      "audit_events.id": "ColumnType<number, never, never>"
+    }
+  }
+}

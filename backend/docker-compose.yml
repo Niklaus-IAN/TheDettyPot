@@ -1,0 +1,23 @@
+# Local Postgres for development and tests.
+#   npm run db:up     start it (waits until healthy)
+#   npm run db:down   stop it (data is kept in the named volume)
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: dettypot
+      POSTGRES_PASSWORD: dettypot
+      POSTGRES_DB: dettypot
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dettypot -d dettypot"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  pgdata:
