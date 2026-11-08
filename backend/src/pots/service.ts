@@ -6,7 +6,8 @@ import type { Database, Db } from "../db/index.js";
 import { badRequest, conflict } from "../errors.js";
 import { notifyPotMembers } from "../notifications/service.js";
 import type { User } from "../users/service.js";
-import { heldBalance, inProgressByPot, paidByMember, totalRaised } from "./money.js";
+import { payoutsInFlight, refundAllProRata } from "../refunds/service.js";
+import { inProgressByPot, paidByMember, totalRaised } from "./money.js";
 
 export type PotRow = Selectable<Database["pots"]>;
 
@@ -428,30 +429,29 @@ export async function advanceStage(db: Db, actor: Actor, potId: string, to: Adva
   });
 }
 
-export async function cancelPot(db: Db, actor: Actor, potId: string, reason?: string): Promise<void> {
-  await db.transaction().execute(async (trx) => {
+/** Cancels the pot and refunds everyone what's left, in proportion to what they paid (MON-15). */
+export async function cancelPot(db: Db, actor: Actor, potId: string, reason?: string): Promise<string[]> {
+  return db.transaction().execute(async (trx) => {
     await authorizePot(trx, actor.user, potId, "pot.cancel");
     const pot = await lockPot(trx, potId);
     if (CLOSED.includes(pot.stage as Stage)) {
       throw conflict("POT_CLOSED", `This pot is already ${pot.stage}`);
     }
-    // Cancelling must refund everyone (MON-15). Until automatic refunds exist,
-    // a pot holding money can't be cancelled, so no one's money is stranded.
-    if ((await heldBalance(trx, potId)) > 0) {
-      throw conflict(
-        "CANCEL_NEEDS_REFUNDS",
-        "This pot holds money. Cancelling it will refund everyone, which isn't available yet.",
-      );
+    // Money already on its way out has to land first, so the refunds are right.
+    if (await payoutsInFlight(trx, potId)) {
+      throw conflict("PAYOUTS_IN_PROGRESS", "Finish or cancel the payouts in progress before cancelling the pot");
     }
 
     await trx.updateTable("pots").set({ stage: "cancelled" }).where("id", "=", potId).execute();
+    const { refundIds } = await refundAllProRata(trx, potId, "pot_cancelled");
     await notifyPotMembers(trx, potId, "pot_cancelled", { reason: reason ?? null }, { exceptUserId: actor.user.id });
     await recordAudit(trx, {
       actorUserId: actor.user.id,
       action: "pot.cancelled",
       potId,
       requestId: actor.requestId,
-      metadata: { from: pot.stage, reason: reason ?? null },
+      metadata: { from: pot.stage, reason: reason ?? null, refunds: refundIds.length },
     });
+    return refundIds;
   });
 }

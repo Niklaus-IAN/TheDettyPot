@@ -247,3 +247,14 @@ export async function payoutsByStatus(db: Db, status: string, limit = 100) {
     .limit(limit)
     .execute();
 }
+
+export async function refundsByStatus(db: Db, status: string, limit = 100) {
+  return db
+    .selectFrom("refunds as r")
+    .innerJoin("users as u", "u.id", "r.user_id")
+    .select(["r.id", "r.pot_id", "r.status", "r.reason", "r.amount_kobo", "r.provider_status", "r.failure_reason", "r.created_at", "u.email"])
+    .where("r.status", "=", status)
+    .orderBy("r.created_at", "desc")
+    .limit(limit)
+    .execute();
+}

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { recordAudit } from "../audit.js";
 import type { Db } from "../db/index.js";
 import { finishPayout } from "../payouts/service.js";
+import { checkRefundsForPayment } from "../refunds/service.js";
 import { confirmPayment } from "./service.js";
 import type { PaystackClient } from "./paystack.js";
 
@@ -61,6 +62,12 @@ async function handle(db: Db, paystack: PaystackClient, event: PaystackEvent): P
     // Paystack's verify still shows the transfer in progress: ask again later.
     if (outcome === "sending") throw new RetryLater("Paystack has not confirmed this transfer's result yet");
     return "processed";
+  }
+  if (event.event.startsWith("refund.")) {
+    const reference = event.data?.transaction_reference;
+    if (typeof reference !== "string") return "ignored";
+    // Whatever the event says, Paystack's refund record is checked for the truth.
+    return (await checkRefundsForPayment(db, paystack, reference)) > 0 ? "processed" : "ignored";
   }
   return "ignored";
 }

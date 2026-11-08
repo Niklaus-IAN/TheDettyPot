@@ -22,6 +22,8 @@ export const POT_PERMISSIONS = {
   "pot.advance_stage": { roles: ORGANISERS },
   // Cancelling refunds everyone, so it stays with the person in charge of the money.
   "pot.cancel": { roles: ORGANISER },
+  // Refunding what's left after the outing (MON-17).
+  "pot.settle": { roles: ORGANISER },
   // After a missed deadline, going ahead with the money raised (MON-15).
   "pot.proceed_with_less": { roles: ORGANISER },
   // Turning join approval or payout approval on or off.

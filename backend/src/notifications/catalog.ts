@@ -110,6 +110,25 @@ export const NOTIFICATIONS = {
   },
   payout_cancelled: { email: false, title: (c) => `The ${naira(c.payload.amountKobo)} payout from ${potName(c)} was withdrawn` },
 
+  // ─── Refunds ───
+  refund_started: {
+    email: true,
+    title: (c) => `${naira(c.payload.amountKobo)} from ${potName(c)} is on its way back to you`,
+    body: () => "It goes back the way you paid. The service fee isn't refundable.",
+  },
+  refund_processed: { email: true, title: (c) => `Your ${naira(c.payload.amountKobo)} refund from ${potName(c)} has been sent` },
+  refund_needs_details: {
+    email: true,
+    title: (c) => `Where should we send your ${naira(c.payload.amountKobo)} refund from ${potName(c)}?`,
+    body: () => "Your bank needs your account details to receive it. Add them in DettyPot.",
+    link: (c) => new URL(`/refunds/${String(c.payload.refundId)}`, c.webBaseUrl).toString(),
+  },
+  refund_failed: {
+    email: true,
+    title: (c) => `We couldn't send your ${naira(c.payload.amountKobo)} refund from ${potName(c)} yet`,
+    body: () => "Your money is safe. Our team is on it and will get back to you.",
+  },
+
   // ─── Money reminders ───
   reminder: {
     email: true,

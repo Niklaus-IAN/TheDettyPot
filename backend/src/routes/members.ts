@@ -11,6 +11,7 @@ import {
   type ApprovalView,
 } from "../approvals/service.js";
 import { requireUser } from "../auth/plugin.js";
+import { startRefunds } from "../refunds/service.js";
 import {
   createEmailInvite,
   createInviteLink,
@@ -264,7 +265,7 @@ export const memberRoutes: FastifyPluginAsyncZod = async (app) => {
     "/pots/:potId/members/:userId/remove",
     { ...auth, schema: { ...doc("members", "Remove a member"), params: memberParams, response: { 200: ok } } },
     async (req) => {
-      await removeMember(app.db, actorOf(req), req.params.potId, req.params.userId);
+      await startRefunds(app.db, app.paystack, await removeMember(app.db, actorOf(req), req.params.potId, req.params.userId));
       return { ok: true as const };
     },
   );
@@ -282,7 +283,7 @@ export const memberRoutes: FastifyPluginAsyncZod = async (app) => {
     "/pots/:potId/leave",
     { ...auth, schema: { ...doc("members", "Leave a pot"), params: potParams, response: { 200: ok } } },
     async (req) => {
-      await leavePot(app.db, actorOf(req), req.params.potId);
+      await startRefunds(app.db, app.paystack, await leavePot(app.db, actorOf(req), req.params.potId));
       return { ok: true as const };
     },
   );

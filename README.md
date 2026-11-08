@@ -46,7 +46,11 @@ Early build. Done so far:
 - Payouts: reserved before sending, account names from the bank, holds and
   flags, optional contributor approval, and every transfer result handled.
 
-Next: refunds and settle-up, reconciliation; then real venues and the AI planner.
+- Refunds: on cancellation, leaving or removal, and leftover settle-up, in
+  proportion and never including the fee, with a path for when the bank needs
+  the member's account.
+
+Next: roll-over into a new outing, reconciliation; then real venues and the AI planner.
 
 ## Getting started
 

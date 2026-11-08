@@ -263,6 +263,39 @@ export interface Pots {
   vibe: Generated<string>;
 }
 
+export interface Refunds {
+  amount_kobo: number;
+  completed_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  failure_reason: string | null;
+  id: Generated<string>;
+  payment_id: string;
+  pot_id: string;
+  provider_deducted_kobo: number | null;
+  provider_refund_id: number | null;
+  provider_status: string | null;
+  reason: string;
+  refund_account_last4: string | null;
+  refund_bank_code: string | null;
+  release_txn_id: string | null;
+  requested_at: Timestamp | null;
+  reserve_txn_id: string;
+  settle_txn_id: string | null;
+  settlement_id: string | null;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  user_id: string;
+}
+
+export interface Settlements {
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  id: Generated<string>;
+  leftover_kobo: number;
+  mode: string;
+  pot_id: string;
+}
+
 export interface Users {
   auth_subject: string | null;
   avatar_emoji: string | null;
@@ -320,6 +353,8 @@ export interface DB {
   pot_invites: PotInvites;
   pot_members: PotMembers;
   pots: Pots;
+  refunds: Refunds;
+  settlements: Settlements;
   users: Users;
   waitlist_signups: WaitlistSignups;
   webhook_events: WebhookEvents;

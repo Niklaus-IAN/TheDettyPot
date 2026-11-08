@@ -2,6 +2,7 @@ import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import type { FastifyRequest } from "fastify";
 import { z } from "zod";
 import { requireUser } from "../auth/plugin.js";
+import { startRefunds } from "../refunds/service.js";
 import { POT_ROLES } from "../auth/permissions.js";
 import {
   advanceStage,
@@ -219,7 +220,8 @@ export const potRoutes: FastifyPluginAsyncZod = async (app) => {
     "/pots/:potId/cancel",
     { ...common, schema: { ...doc("Cancel a pot (organiser only)"), params: potParams, body: cancelBody, response: { 200: potDetail } } },
     async (req) => {
-      await cancelPot(app.db, actorOf(req), req.params.potId, req.body?.reason);
+      const refundIds = await cancelPot(app.db, actorOf(req), req.params.potId, req.body?.reason);
+      await startRefunds(app.db, app.paystack, refundIds);
       return toDetail(await getPot(app.db, requireUser(req), req.params.potId));
     },
   );
