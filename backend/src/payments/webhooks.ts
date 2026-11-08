@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { recordAudit } from "../audit.js";
 import type { Db } from "../db/index.js";
+import { finishPayout } from "../payouts/service.js";
 import { confirmPayment } from "./service.js";
 import type { PaystackClient } from "./paystack.js";
 
@@ -50,6 +51,15 @@ async function handle(db: Db, paystack: PaystackClient, event: PaystackEvent): P
     if (outcome === "unknown") return "ignored"; // not a DettyPot payment
     // Paystack said success but verify doesn't agree yet: ask again later.
     if (outcome === "not_paid") throw new RetryLater("Paystack has not confirmed this charge yet");
+    return "processed";
+  }
+  if (event.event === "transfer.success" || event.event === "transfer.failed" || event.event === "transfer.reversed") {
+    const reference = event.data?.reference;
+    if (typeof reference !== "string") return "ignored";
+    const outcome = await finishPayout(db, paystack, reference, "webhook");
+    if (outcome === "unknown") return "ignored";
+    // Paystack's verify still shows the transfer in progress: ask again later.
+    if (outcome === "sending") throw new RetryLater("Paystack has not confirmed this transfer's result yet");
     return "processed";
   }
   return "ignored";

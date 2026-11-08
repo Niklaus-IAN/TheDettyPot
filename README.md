@@ -43,7 +43,10 @@ Early build. Done so far:
   de-duplicated webhooks, a balanced ledger every member can read, automatic
   "funded", and expiry of abandoned payments.
 
-Next: payouts, refunds and settle-up, reconciliation; then real venues and the AI planner.
+- Payouts: reserved before sending, account names from the bank, holds and
+  flags, optional contributor approval, and every transfer result handled.
+
+Next: refunds and settle-up, reconciliation; then real venues and the AI planner.
 
 ## Getting started
 

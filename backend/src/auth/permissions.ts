@@ -38,6 +38,8 @@ export const POT_PERMISSIONS = {
   "contribution.make": { roles: ANY, verifiedEmail: true },
   // Co-organisers have every organiser right except payouts (FR-POT-04).
   "payout.request": { roles: ORGANISER, verifiedEmail: true },
+  // Anyone in the pot can raise a concern about a payout on hold (MON-14).
+  "payout.flag": { roles: ANY },
 } as const satisfies Record<string, Rule>;
 
 export type PotAction = keyof typeof POT_PERMISSIONS;

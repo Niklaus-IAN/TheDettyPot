@@ -6,6 +6,7 @@ import { LogEmailSender } from "./notifications/email.js";
 import { HttpPaystackClient } from "./payments/paystack.js";
 import { expireStalePayments } from "./payments/service.js";
 import { processPendingWebhooks } from "./payments/webhooks.js";
+import { progressPayouts } from "./payouts/service.js";
 import { deliverEmails, sendDeadlinePassedAlerts, sendDeadlineWarnings, sendPaymentReminders } from "./worker/tasks.js";
 
 /**
@@ -29,6 +30,7 @@ const jobs: [string, () => Promise<unknown>][] = [
     ? ([
         ["paystack webhooks", () => processPendingWebhooks(db, paystack)],
         ["stale payments", () => expireStalePayments(db, paystack)],
+        ["payouts", () => progressPayouts(db, paystack)],
       ] as [string, () => Promise<unknown>][])
     : []),
   ["expire approvals", () => expireDueApprovals(db)],

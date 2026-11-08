@@ -129,8 +129,12 @@ All amounts are integers in **kobo** (₦1 = 100 kobo). Full, interactive refere
 | `POST /pots/:id/payments` | Start a payment; send the member to `checkoutUrl` |
 | `GET /pots/:id/payments/mine`, `…/:paymentId` | Payment status |
 | `GET /pots/:id/ledger` | Every movement of the pot's money in plain language, fee lines included |
+| `GET /banks`, `POST /pots/:id/payouts/resolve-account` | Banks, and the real name on an account before paying it |
+| `POST /pots/:id/payouts`, `GET /pots/:id/payouts` | Pay money out (organiser), and every payout for all members to see |
+| `POST /pots/:id/payouts/:payoutId/flag`, `…/cancel` | Any member flags a payout on hold; the organiser withdraws an unsent one |
 | `POST /webhooks/paystack` | Paystack's signed notifications (not for clients) |
 | `GET/POST /admin/fees`, `GET /admin/payments`, `GET /admin/webhooks` | Fee schedules; payments held for review; webhooks that ran out of retries |
+| `GET /admin/payouts`, `POST /admin/payouts/:id/release\|cancel\|retry` | Flagged and stuck payouts, and support's decision on them |
 | `POST /waitlist` | The website's waitlist form (no sign-in) |
 | `GET /admin/pots`, `/admin/pots/:id`, `/admin/users`, `/admin/audit` | Support tools: search, a pot's full record, the audit log (admins only) |
 | `POST /admin/pots/:id/freeze`, `…/unfreeze` | Pause a pot: read-only for its members until lifted |
@@ -182,8 +186,30 @@ The rules (MON-01 to MON-18 in the BRD) and where they live:
   unless it exactly clears what the member still owes.
 - **Funded** happens automatically the moment confirmed money reaches the target.
 
-Coming next: payouts (with reservation, approvals and holds), refunds and settle-up,
-and a daily reconciliation against Paystack.
+### Payouts
+
+- **Organiser only**, only once the pot is funded, only up to what's available
+  after earlier and pending payouts (MON-09).
+- **Reserved first.** The payout is recorded and its money moved to the pot's
+  reserved account in one transaction before anything is sent, so two requests
+  can't both pass (MON-10).
+- **The account name comes from the bank** (MON-11): there is no field to type one.
+- **Holds** (MON-14): 24 hours for a new account, or for more than ₦500,000 or
+  half the pot. Every member is told the amount and account name, and anyone can
+  flag it during the hold, which pauses it for support.
+- **Member approval** (MON-13), when the pot switches it on: a majority of the
+  people who had paid in, within 48 hours. The organiser's request counts as
+  their yes if they paid in. Rejected or expired returns the money.
+- **Sending** is claimed by one worker and keyed by the payout's reference, so
+  Paystack can't pay it twice. A clear refusal returns the money; no answer is
+  never treated as failure: the worker asks Paystack after 10 quiet minutes and
+  resends safely only if Paystack never received it. If Paystack asks for an OTP,
+  the payout stops for support (switch transfer OTP off for automated payouts).
+- **Results** (MON-12) are confirmed with Paystack's verify call. Success settles
+  the reserved money; DettyPot pays the transfer fee, never the pot. Failure
+  returns it to the pot, and so does a bank reversal of a completed payout.
+
+Coming next: refunds and settle-up, and a daily reconciliation against Paystack.
 
 ## Who can do what
 

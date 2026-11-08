@@ -5,6 +5,7 @@ import {
   auditLog,
   feeSchedules,
   paymentsByStatus,
+  payoutsByStatus,
   potRecord,
   searchPots,
   searchUsers,
@@ -13,6 +14,7 @@ import {
   webhooksByStatus,
 } from "../admin/service.js";
 import { requireUser } from "../auth/plugin.js";
+import { adminDecidePayout, sendPayout } from "../payouts/service.js";
 
 /** Internal support tools. Hidden (404) from anyone who isn't an admin. */
 export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
@@ -95,6 +97,35 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (req) => paymentsByStatus(app.db, req.query.status),
+  );
+
+  app.get(
+    "/admin/payouts",
+    {
+      schema: {
+        ...doc("Payouts by status; 'flagged' and 'needs_attention' need a person"),
+        querystring: z.object({
+          status: z.enum(["flagged", "needs_attention", "waiting", "ready", "sending", "succeeded", "failed", "reversed", "rejected", "cancelled"]).default("flagged"),
+        }),
+      },
+    },
+    async (req) => payoutsByStatus(app.db, req.query.status),
+  );
+
+  app.post(
+    "/admin/payouts/:payoutId/:decision",
+    {
+      schema: {
+        ...doc("Release a flagged payout, cancel one (money back to the pot), or retry one needing attention"),
+        params: z.object({ payoutId: z.uuid(), decision: z.enum(["release", "cancel", "retry"]) }),
+        response: { 200: z.object({ status: z.string() }) },
+      },
+    },
+    async (req) => {
+      let status = await adminDecidePayout(app.db, requireUser(req), req.params.payoutId, req.params.decision, req.id);
+      if (status === "ready" && app.paystack) status = await sendPayout(app.db, app.paystack, req.params.payoutId);
+      return { status };
+    },
   );
 
   app.get(

@@ -36,16 +36,18 @@ export async function potLedger(db: Db, user: User, potId: string): Promise<PotL
     .innerJoin("ledger_entries as e", "e.transaction_id", "t.id")
     .innerJoin("ledger_accounts as a", "a.id", "e.account_id")
     .leftJoin("users as u", "u.id", "t.member_user_id")
-    .select(["t.id", "t.kind", "t.description", "t.member_user_id", "u.full_name", "t.created_at", "a.kind as account_kind", "a.pot_id as account_pot", "e.amount_kobo"])
+    .select(["t.id", "t.kind", "t.reverses_id", "t.description", "t.member_user_id", "u.full_name", "t.created_at", "a.kind as account_kind", "a.pot_id as account_pot", "e.amount_kobo"])
     .where("t.pot_id", "=", potId)
     .orderBy("t.created_at")
     .orderBy("e.id")
     .execute();
 
   const lines = new Map<string, LedgerLine>();
+  const reverses = new Map<string, string>();
   let available = 0;
   let reserved = 0;
   for (const r of rows) {
+    if (r.reverses_id) reverses.set(r.id, r.reverses_id);
     let line = lines.get(r.id);
     if (!line) {
       line = {
@@ -72,7 +74,9 @@ export async function potLedger(db: Db, user: User, potId: string): Promise<PotL
   }
 
   const all = [...lines.values()];
-  const sum = (kind: string) => all.filter((l) => l.kind === kind).reduce((s, l) => s + l.potAmountKobo, 0);
+  // A reversal counts against whatever it reverses: a reversed payout is no longer paid out.
+  const effectiveKind = (l: LedgerLine) => (l.kind === "reversal" ? (lines.get(reverses.get(l.id) ?? "")?.kind ?? "reversal") : l.kind);
+  const sum = (kind: string) => all.filter((l) => effectiveKind(l) === kind).reduce((s, l) => s + l.potAmountKobo, 0);
   const inProgress = await db
     .selectFrom("payments")
     .select((eb) => eb.fn.coalesce(eb.fn.sum<number>("share_kobo"), eb.lit(0)).as("kobo"))

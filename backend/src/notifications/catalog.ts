@@ -70,6 +70,46 @@ export const NOTIFICATIONS = {
     body: () => "Something about it didn't match what we expected. Our team will look at it and get back to you. Your money is safe.",
   },
 
+  // ─── Payouts ───
+  payout_requested: {
+    email: true,
+    title: (c) => `${naira(c.payload.amountKobo)} is being paid from ${potName(c)} to ${c.payload.accountName} (${c.payload.bankName})`,
+    body: (c) =>
+      [
+        c.payload.needsApproval ? "Contributors need to approve it first." : "",
+        c.payload.holdUntil ? "It's on hold for 24 hours first. If something looks wrong, flag it from the pot page." : "",
+      ]
+        .filter(Boolean)
+        .join(" "),
+  },
+  payout_vote: {
+    email: true,
+    title: (c) => `Vote: pay ${naira(c.payload.amountKobo)} from ${potName(c)} to ${c.payload.accountName}?`,
+    body: () => "You paid into this pot, so you get a say. Voting closes in 48 hours.",
+  },
+  payout_succeeded: { email: true, title: (c) => `${naira(c.payload.amountKobo)} was paid from ${potName(c)} to ${c.payload.accountName}` },
+  payout_failed: {
+    email: true,
+    title: (c) => `The ${naira(c.payload.amountKobo)} payout from ${potName(c)} didn't go through`,
+    body: () => "The money is back in the pot.",
+  },
+  payout_reversed: {
+    email: true,
+    title: (c) => `The bank returned a ${naira(c.payload.amountKobo)} payout from ${potName(c)}`,
+    body: () => "The money is back in the pot.",
+  },
+  payout_rejected: {
+    email: true,
+    title: (c) => `Contributors didn't approve the ${naira(c.payload.amountKobo)} payout from ${potName(c)}`,
+    body: () => "The money is back in the pot. You can ask again.",
+  },
+  payout_flagged: {
+    email: true,
+    title: (c) => `A member flagged the ${naira(c.payload.amountKobo)} payout from ${potName(c)}`,
+    body: () => "It's paused while DettyPot support takes a look.",
+  },
+  payout_cancelled: { email: false, title: (c) => `The ${naira(c.payload.amountKobo)} payout from ${potName(c)} was withdrawn` },
+
   // ─── Money reminders ───
   reminder: {
     email: true,
