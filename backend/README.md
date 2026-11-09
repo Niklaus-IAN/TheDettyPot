@@ -125,6 +125,12 @@ All amounts are integers in **kobo** (₦1 = 100 kobo). Full, interactive refere
 | `POST /pots/:id/members/:userId/demote` | Take co-organiser rights back (no vote needed) |
 | `POST /pots/:id/invites/email` | Invite someone by email, with or without an account (single use, tied to that verified address) |
 | `GET /notifications`, `POST /notifications/read` | Your notifications with ready-to-show text, and marking them read |
+| `GET /pots/:id/payments/options` | What you owe, the minimum, and share + fee = total for card and bank transfer |
+| `POST /pots/:id/payments` | Start a payment; send the member to `checkoutUrl` |
+| `GET /pots/:id/payments/mine`, `…/:paymentId` | Payment status |
+| `GET /pots/:id/ledger` | Every movement of the pot's money in plain language, fee lines included |
+| `POST /webhooks/paystack` | Paystack's signed notifications (not for clients) |
+| `GET/POST /admin/fees`, `GET /admin/payments`, `GET /admin/webhooks` | Fee schedules; payments held for review; webhooks that ran out of retries |
 | `POST /waitlist` | The website's waitlist form (no sign-in) |
 | `GET /admin/pots`, `/admin/pots/:id`, `/admin/users`, `/admin/audit` | Support tools: search, a pot's full record, the audit log (admins only) |
 | `POST /admin/pots/:id/freeze`, `…/unfreeze` | Pause a pot: read-only for its members until lifted |
@@ -144,6 +150,40 @@ Co-organisers: the organiser nominates a member; a majority of the other active
 members must approve within 72 hours, and the organiser's nomination counts as
 their yes (so in a two-person pot it passes at once). Only people who were in
 the pot when the vote opened can vote.
+
+## Money
+
+The rules (MON-01 to MON-18 in the BRD) and where they live:
+
+- **A payment exists before anyone pays.** `POST /pots/:id/payments` records the
+  member, pot, share, fee, total, fee schedule and a unique reference, then opens a
+  Paystack checkout for exactly that total. Card, or bank transfer to a one-off
+  account number Paystack shows at checkout.
+- **Money counts only when Paystack confirms it.** Webhooks must carry a valid
+  `x-paystack-signature` (HMAC-SHA512 of the raw body). Each one is stored first,
+  then the payment is checked with Paystack's verify API, and only counted if the
+  amount, currency and reference all match. A mismatch is held as `review` for a
+  person; it never counts automatically.
+- **Nothing counts twice.** The same webhook is stored once, the payment row is
+  locked while it's confirmed, and the ledger refuses a second posting for the
+  same payment.
+- **Nothing is lost.** Stored webhooks are retried by the worker (1, 5, 15, 60,
+  180 minutes, then flagged). Payments left pending past an hour are checked with
+  Paystack once more before expiring, and money that arrives late still counts.
+- **The fee.** Contributors pay share + one service fee: Paystack's cost plus
+  DettyPot's margin (zero during the beta), grossed up so the pot always receives
+  the full share, rounded up to the naira. Cards are quoted at the international
+  rate. The fee is non-refundable for now, and each payment records that rule.
+  Admins change fee schedules from `/admin/fees`; started payments keep theirs.
+- **The ledger.** Each payment is one balanced posting: the share into the pot,
+  and the fee as two lines (what Paystack kept, what DettyPot kept). If Paystack
+  keeps more than the fee covered, DettyPot's line goes negative, never the pot.
+- **Instalments and overpaying** are allowed; each payment is at least ₦1,000,
+  unless it exactly clears what the member still owes.
+- **Funded** happens automatically the moment confirmed money reaches the target.
+
+Coming next: payouts (with reservation, approvals and holds), refunds and settle-up,
+and a daily reconciliation against Paystack.
 
 ## Who can do what
 

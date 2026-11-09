@@ -1,6 +1,7 @@
 import { recordAudit } from "../audit.js";
 import type { Db } from "../db/index.js";
 import { conflict, notFound } from "../errors.js";
+import { currentSchedule, PAYMENT_METHODS, type PaymentMethod } from "../payments/fees.js";
 import { notifyPotMembers } from "../notifications/service.js";
 import { paidByMember, totalRaised } from "../pots/money.js";
 import type { User } from "../users/service.js";
@@ -162,4 +163,76 @@ export async function auditLog(db: Db, filter: { potId?: string; actorUserId?: s
   if (filter.potId) query = query.where("pot_id", "=", filter.potId);
   if (filter.actorUserId) query = query.where("actor_user_id", "=", filter.actorUserId);
   return query.orderBy("occurred_at", "desc").limit(filter.limit).execute();
+}
+
+// ─── Fees (MON-18) ───
+
+export async function feeSchedules(db: Db) {
+  const current = [];
+  for (const method of PAYMENT_METHODS) current.push(await currentSchedule(db, method));
+  const history = await db.selectFrom("fee_schedules").selectAll().orderBy("effective_from", "desc").limit(50).execute();
+  return { current, history };
+}
+
+export interface NewFeeSchedule {
+  method: PaymentMethod;
+  percentBps: number;
+  flatKobo: number;
+  capKobo: number | null;
+  marginBps: number;
+  marginFlatKobo: number;
+  note?: string;
+}
+
+/** A change is a new schedule; payments already started keep the one they were quoted under. */
+export async function setFeeSchedule(db: Db, admin: User, input: NewFeeSchedule, requestId?: string) {
+  return db.transaction().execute(async (trx) => {
+    const row = await trx
+      .insertInto("fee_schedules")
+      .values({
+        method: input.method,
+        percent_bps: input.percentBps,
+        flat_kobo: input.flatKobo,
+        cap_kobo: input.capKobo,
+        margin_bps: input.marginBps,
+        margin_flat_kobo: input.marginFlatKobo,
+        note: input.note ?? null,
+        created_by: admin.id,
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+    await recordAudit(trx, {
+      actorUserId: admin.id,
+      actorType: "admin",
+      action: "admin.fee_schedule_set",
+      subjectType: "fee_schedule",
+      subjectId: row.id,
+      requestId,
+      metadata: { ...input },
+    });
+    return row;
+  });
+}
+
+// ─── Money needing a person ───
+
+export async function paymentsByStatus(db: Db, status: string, limit = 100) {
+  return db
+    .selectFrom("payments as p")
+    .innerJoin("users as u", "u.id", "p.user_id")
+    .select(["p.id", "p.pot_id", "p.reference", "p.method", "p.status", "p.share_kobo", "p.fee_kobo", "p.total_kobo", "p.failure_reason", "p.created_at", "u.email"])
+    .where("p.status", "=", status)
+    .orderBy("p.created_at", "desc")
+    .limit(limit)
+    .execute();
+}
+
+export async function webhooksByStatus(db: Db, status: string, limit = 100) {
+  return db
+    .selectFrom("webhook_events")
+    .select(["id", "event_type", "dedupe_key", "status", "attempts", "last_error", "received_at", "processed_at"])
+    .where("status", "=", status)
+    .orderBy("received_at", "desc")
+    .limit(limit)
+    .execute();
 }

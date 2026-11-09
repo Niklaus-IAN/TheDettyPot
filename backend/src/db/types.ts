@@ -36,6 +36,20 @@ export interface AuditEvents {
   subject_type: string | null;
 }
 
+export interface FeeSchedules {
+  cap_kobo: number | null;
+  created_at: Generated<Timestamp>;
+  created_by: string | null;
+  effective_from: Generated<Timestamp>;
+  flat_kobo: Generated<number>;
+  id: Generated<string>;
+  margin_bps: Generated<number>;
+  margin_flat_kobo: Generated<number>;
+  method: string;
+  note: string | null;
+  percent_bps: number;
+}
+
 export interface LedgerAccountBalances {
   account_id: string | null;
   balance_kobo: number | null;
@@ -96,6 +110,32 @@ export interface Notifications {
   recipient_email: string | null;
   type: string;
   user_id: string | null;
+}
+
+export interface Payments {
+  channel: string | null;
+  created_at: Generated<Timestamp>;
+  currency: Generated<string>;
+  expires_at: Timestamp;
+  failure_reason: string | null;
+  fee_kobo: number;
+  fee_refundable: boolean;
+  fee_schedule_id: string;
+  id: Generated<string>;
+  ledger_transaction_id: string | null;
+  method: string;
+  paid_at: Timestamp | null;
+  pot_id: string;
+  provider_access_code: string | null;
+  provider_checkout_url: string | null;
+  provider_fee_kobo: number | null;
+  provider_transaction_id: number | null;
+  reference: string;
+  share_kobo: number;
+  status: Generated<string>;
+  total_kobo: number;
+  updated_at: Generated<Timestamp>;
+  user_id: string;
 }
 
 export interface PotApprovalRequests {
@@ -205,14 +245,30 @@ export interface WaitlistSignups {
   source: string | null;
 }
 
+export interface WebhookEvents {
+  attempts: Generated<number>;
+  dedupe_key: string;
+  event_type: string;
+  id: Generated<string>;
+  last_error: string | null;
+  next_attempt_at: Generated<Timestamp>;
+  payload: Json;
+  processed_at: Timestamp | null;
+  provider: string;
+  received_at: Generated<Timestamp>;
+  status: Generated<string>;
+}
+
 export interface DB {
   audit_events: AuditEvents;
+  fee_schedules: FeeSchedules;
   ledger_account_balances: LedgerAccountBalances;
   ledger_accounts: LedgerAccounts;
   ledger_entries: LedgerEntries;
   ledger_transactions: LedgerTransactions;
   notification_deliveries: NotificationDeliveries;
   notifications: Notifications;
+  payments: Payments;
   pot_approval_requests: PotApprovalRequests;
   pot_approval_votes: PotApprovalVotes;
   pot_invites: PotInvites;
@@ -220,4 +276,5 @@ export interface DB {
   pots: Pots;
   users: Users;
   waitlist_signups: WaitlistSignups;
+  webhook_events: WebhookEvents;
 }

@@ -26,6 +26,28 @@ describe("loadConfig: sign-in", () => {
   });
 });
 
+describe("loadConfig: Paystack keys", () => {
+  it("moves real money only in prod", () => {
+    for (const APP_ENV of ["local", "test", "dev", "staging"]) {
+      expect(() => loadConfig({ ...valid, APP_ENV, PAYSTACK_SECRET_KEY: "sk_live_abc123" })).toThrow(/live key is only allowed in prod/);
+      expect(loadConfig({ ...valid, APP_ENV, PAYSTACK_SECRET_KEY: "sk_test_abc123" }).PAYSTACK_SECRET_KEY).toBe("sk_test_abc123");
+    }
+  });
+
+  it("never runs prod on test money, or without payments", () => {
+    expect(() => loadConfig({ ...valid, APP_ENV: "prod", PAYSTACK_SECRET_KEY: "sk_test_abc123" })).toThrow(/prod needs a live key/);
+    expect(() => loadConfig({ ...valid, APP_ENV: "prod" })).toThrow(/prod needs a live key/);
+  });
+
+  it("rejects something that isn't a secret key, such as a public key", () => {
+    expect(() => loadConfig({ ...valid, PAYSTACK_SECRET_KEY: "pk_test_abc123" })).toThrow(/PAYSTACK_SECRET_KEY/);
+  });
+
+  it("never echoes the key in errors", () => {
+    expect(() => loadConfig({ ...valid, APP_ENV: "dev", PAYSTACK_SECRET_KEY: "sk_live_supersecret" })).not.toThrow(/supersecret/);
+  });
+});
+
 describe("loadConfig", () => {
   it("applies defaults", () => {
     const config = loadConfig(valid);
@@ -35,9 +57,10 @@ describe("loadConfig", () => {
   });
 
   it("accepts every deployment environment", () => {
-    for (const APP_ENV of ["local", "test", "dev", "staging", "prod"]) {
+    for (const APP_ENV of ["local", "test", "dev", "staging"]) {
       expect(loadConfig({ ...valid, APP_ENV }).APP_ENV).toBe(APP_ENV);
     }
+    expect(loadConfig({ ...valid, APP_ENV: "prod", PAYSTACK_SECRET_KEY: "sk_live_abc123" }).APP_ENV).toBe("prod");
   });
 
   it("rejects an unknown environment", () => {
@@ -45,7 +68,7 @@ describe("loadConfig", () => {
   });
 
   it("refuses to expose API docs in prod", () => {
-    expect(() => loadConfig({ ...valid, APP_ENV: "prod", ENABLE_DOCS: "true" })).toThrow(/ENABLE_DOCS/);
+    expect(() => loadConfig({ ...valid, APP_ENV: "prod", PAYSTACK_SECRET_KEY: "sk_live_abc123", ENABLE_DOCS: "true" })).toThrow(/ENABLE_DOCS/);
     expect(loadConfig({ ...valid, APP_ENV: "staging", ENABLE_DOCS: "true" }).ENABLE_DOCS).toBe(true);
   });
 

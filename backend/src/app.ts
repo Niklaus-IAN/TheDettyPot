@@ -11,6 +11,7 @@ import {
 } from "fastify-type-provider-zod";
 import { installAuth } from "./auth/plugin.js";
 import { tokenVerifierFromConfig, type TokenVerifier } from "./auth/tokens.js";
+import { HttpPaystackClient, type PaystackClient } from "./payments/paystack.js";
 import type { Config } from "./config.js";
 import type { Db } from "./db/index.js";
 import { AppError, type ErrorBody } from "./errors.js";
@@ -19,13 +20,17 @@ import { meRoutes } from "./routes/me.js";
 import { adminRoutes } from "./routes/admin.js";
 import { memberRoutes } from "./routes/members.js";
 import { notificationRoutes } from "./routes/notifications.js";
+import { paymentRoutes } from "./routes/payments.js";
 import { potRoutes } from "./routes/pots.js";
 import { waitlistRoutes } from "./routes/waitlist.js";
+import { webhookRoutes } from "./routes/webhooks.js";
 
 declare module "fastify" {
   interface FastifyInstance {
     config: Config;
     db: Db;
+    /** null when Paystack isn't configured; payment endpoints then answer 503. */
+    paystack: PaystackClient | null;
   }
 }
 
@@ -34,6 +39,8 @@ export interface AppDeps {
   db: Db;
   /** Defaults to one built from config; tests pass their own. */
   tokenVerifier?: TokenVerifier;
+  /** Defaults to the real Paystack API when a secret key is configured; tests pass a fake. */
+  paystack?: PaystackClient | null;
 }
 
 // Accept a caller-supplied request id (e.g. from a load balancer) only if it
@@ -51,7 +58,7 @@ function loggerOptions(config: Config) {
   return base;
 }
 
-export async function buildApp({ config, db, tokenVerifier }: AppDeps): Promise<FastifyInstance> {
+export async function buildApp({ config, db, tokenVerifier, paystack }: AppDeps): Promise<FastifyInstance> {
   const app = Fastify({
     logger: config.APP_ENV === "test" ? false : loggerOptions(config),
     trustProxy: config.TRUST_PROXY,
@@ -63,6 +70,14 @@ export async function buildApp({ config, db, tokenVerifier }: AppDeps): Promise<
 
   app.decorate("config", config);
   app.decorate("db", db);
+  app.decorate(
+    "paystack",
+    paystack !== undefined
+      ? paystack
+      : config.PAYSTACK_SECRET_KEY
+        ? new HttpPaystackClient(config.PAYSTACK_SECRET_KEY, config.PAYSTACK_BASE_URL)
+        : null,
+  );
 
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
@@ -130,9 +145,11 @@ export async function buildApp({ config, db, tokenVerifier }: AppDeps): Promise<
   await app.register(meRoutes);
   await app.register(potRoutes);
   await app.register(memberRoutes);
+  await app.register(paymentRoutes);
   await app.register(notificationRoutes);
   await app.register(waitlistRoutes);
   await app.register(adminRoutes);
+  await app.register(webhookRoutes);
 
   return app;
 }

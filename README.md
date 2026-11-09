@@ -39,7 +39,11 @@ Early build. Done so far:
 - Support tools: search, a pot's full record and audit trail, freezing a pot.
 - A working waitlist, and rate limits on public and sensitive endpoints.
 
-Next: payments (Paystack), then real venues and the AI planner.
+- Payments (Paystack): checkout quotes, card and bank transfer, signed and
+  de-duplicated webhooks, a balanced ledger every member can read, automatic
+  "funded", and expiry of abandoned payments.
+
+Next: payouts, refunds and settle-up, reconciliation; then real venues and the AI planner.
 
 ## Getting started
 

@@ -45,3 +45,17 @@ export async function heldBalance(db: Db, potId: string): Promise<number> {
     .executeTakeFirst();
   return Number(row?.held ?? 0);
 }
+
+/** Payments started but not confirmed yet, per pot. Shown apart from raised money (FR-PAY-03). */
+export async function inProgressByPot(db: Db, potIds: string[]): Promise<Map<string, number>> {
+  if (potIds.length === 0) return new Map();
+  const rows = await db
+    .selectFrom("payments")
+    .select((eb) => ["pot_id", eb.fn.sum<number>("share_kobo").as("kobo")])
+    .where("pot_id", "in", potIds)
+    .where("status", "=", "pending")
+    .where("expires_at", ">", new Date())
+    .groupBy("pot_id")
+    .execute();
+  return new Map(rows.map((r) => [r.pot_id, Number(r.kobo)]));
+}

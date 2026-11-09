@@ -27,6 +27,9 @@ const configSchema = z
     EMAIL_FROM: z.string().min(3).default("DettyPot <no-reply@dettypot.local>"),
     // Per-IP request limits (NFR-03). Behind a load balancer, set TRUST_PROXY so
     // limits apply to the caller's address rather than the balancer's.
+    // Paystack. Without a secret key, payment endpoints answer 503.
+    PAYSTACK_SECRET_KEY: z.string().regex(/^sk_(test|live)_[A-Za-z0-9]+$/, "must be a Paystack secret key").optional(),
+    PAYSTACK_BASE_URL: z.url().default("https://api.paystack.co"),
     RATE_LIMIT_ENABLED: z.stringbool().default(true),
     TRUST_PROXY: z.stringbool().default(false),
     // Sign-in tokens are issued by an OpenID Connect provider (Cognito or similar).
@@ -41,6 +44,14 @@ const configSchema = z
   .superRefine((config, ctx) => {
     if (config.APP_ENV === "prod" && config.ENABLE_DOCS) {
       ctx.addIssue({ code: "custom", path: ["ENABLE_DOCS"], message: "must be false in prod" });
+    }
+    // Real money only ever moves in prod, and prod never runs on test money.
+    const key = config.PAYSTACK_SECRET_KEY;
+    if (key?.startsWith("sk_live_") && config.APP_ENV !== "prod") {
+      ctx.addIssue({ code: "custom", path: ["PAYSTACK_SECRET_KEY"], message: "a live key is only allowed in prod" });
+    }
+    if (config.APP_ENV === "prod" && !key?.startsWith("sk_live_")) {
+      ctx.addIssue({ code: "custom", path: ["PAYSTACK_SECRET_KEY"], message: "prod needs a live key" });
     }
     if (config.AUTH_DEV_JWKS_FILE && !["local", "test"].includes(config.APP_ENV)) {
       ctx.addIssue({ code: "custom", path: ["AUTH_DEV_JWKS_FILE"], message: "is only allowed in local and test" });
