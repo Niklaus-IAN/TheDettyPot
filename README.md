@@ -53,7 +53,9 @@ Early build. Done so far:
 - Daily reconciliation with Paystack that fixes lost webhooks and flags
   anything else for support.
 
-Next: roll-over into a new outing; then real venues and the AI planner.
+- Rolling leftover money into a new outing, with each contributor's consent.
+
+Next: real venues and the AI planner, then deployment to AWS.
 
 ## Getting started
 

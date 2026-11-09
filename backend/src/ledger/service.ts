@@ -7,7 +7,9 @@ export type AccountKind =
   | "processor_clearing"
   | "platform_revenue"
   | "platform_expense"
-  | "external";
+  | "external"
+  /** Money moving from one pot to another passes through here within one transaction. */
+  | "internal_transfer";
 
 const POT_KINDS: readonly AccountKind[] = ["pot_available", "pot_reserved"];
 

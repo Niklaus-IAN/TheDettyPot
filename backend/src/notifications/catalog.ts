@@ -129,6 +129,19 @@ export const NOTIFICATIONS = {
     body: () => "Your money is safe. Our team is on it and will get back to you.",
   },
 
+  // ─── Rolling leftover money into a new outing ───
+  rollover_offer: {
+    email: true,
+    title: (c) => `Move your ${naira(c.payload.amountKobo)} from ${potName(c)} into ${String(c.payload.targetPotName)}?`,
+    body: () => "Choose to move it into the new outing, or get it refunded. If you don't choose within 3 days, we'll refund it.",
+    link: (c) => new URL(`/rollovers/${String(c.payload.rolloverId)}`, c.webBaseUrl).toString(),
+  },
+  rollover_moved: {
+    email: true,
+    title: (c) => `Your ${naira(c.payload.amountKobo)} is now in ${String(c.payload.targetPotName)}`,
+    link: (c) => new URL(`/pots/${String(c.payload.targetPotId)}`, c.webBaseUrl).toString(),
+  },
+
   // ─── Money reminders ───
   reminder: {
     email: true,

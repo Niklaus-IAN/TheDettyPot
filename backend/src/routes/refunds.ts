@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireUser } from "../auth/plugin.js";
 import type { Actor } from "../pots/service.js";
 import { myRefunds, provideRefundAccount, settleLeftover, startRefunds } from "../refunds/service.js";
+import { chooseRollover, getMyRollover, offerRollover, potRollovers } from "../rollovers/service.js";
 
 const actorOf = (req: FastifyRequest): Actor => ({ user: requireUser(req), requestId: req.id });
 const doc = (summary: string) => ({ tags: ["refunds"], summary, security: [{ bearerAuth: [] }] });
@@ -16,15 +17,92 @@ export const refundRoutes: FastifyPluginAsyncZod = async (app) => {
     {
       ...auth,
       schema: {
-        ...doc("Refund what's left after the outing, in proportion to what each person paid (organiser only)"),
+        ...doc("Settle what's left after the outing (organiser only): refund it in proportion, or offer to roll it into a new pot you organise"),
         params: z.object({ potId: z.string().max(64) }),
-        response: { 200: z.object({ settlementId: z.uuid(), leftoverKobo: z.number().int(), refunds: z.number().int() }) },
+        body: z
+          .discriminatedUnion("mode", [
+            z.strictObject({ mode: z.literal("refund") }),
+            z.strictObject({ mode: z.literal("rollover"), targetPotId: z.uuid() }),
+          ])
+          .optional(),
+        response: {
+          200: z.object({
+            mode: z.enum(["refund", "rollover"]),
+            leftoverKobo: z.number().int(),
+            settlementId: z.uuid().optional(),
+            refunds: z.number().int().optional(),
+            rolloverId: z.uuid().optional(),
+            consentDeadline: z.iso.datetime().optional(),
+          }),
+        },
       },
     },
     async (req) => {
+      if (req.body?.mode === "rollover") {
+        const r = await offerRollover(app.db, actorOf(req), req.params.potId, req.body.targetPotId);
+        return { mode: "rollover" as const, leftoverKobo: r.leftover_kobo, rolloverId: r.id, consentDeadline: r.consent_deadline.toISOString() };
+      }
       const result = await settleLeftover(app.db, actorOf(req), req.params.potId);
       await startRefunds(app.db, app.paystack, result.refundIds);
-      return { settlementId: result.settlementId, leftoverKobo: result.leftoverKobo, refunds: result.refundIds.length };
+      return { mode: "refund" as const, settlementId: result.settlementId, leftoverKobo: result.leftoverKobo, refunds: result.refundIds.length };
+    },
+  );
+
+  app.get(
+    "/pots/:potId/rollovers",
+    { ...auth, schema: { ...doc("Roll-over offers from this pot and how each contributor chose"), params: z.object({ potId: z.string().max(64) }) } },
+    async (req) => potRollovers(app.db, requireUser(req), req.params.potId),
+  );
+
+  app.get(
+    "/rollovers/:rolloverId",
+    {
+      ...auth,
+      schema: {
+        ...doc("Your part of a roll-over offer"),
+        params: z.object({ rolloverId: z.uuid() }),
+        response: {
+          200: z.object({
+            id: z.uuid(),
+            status: z.string(),
+            consentDeadline: z.iso.datetime(),
+            amountKobo: z.number().int(),
+            choice: z.enum(["pending", "move", "refund"]),
+            fromPot: z.object({ id: z.uuid(), name: z.string() }),
+            toPot: z.object({ id: z.uuid(), name: z.string(), shareKobo: z.number().int() }),
+          }),
+        },
+      },
+    },
+    async (req) => {
+      const r = await getMyRollover(app.db, requireUser(req), req.params.rolloverId);
+      return {
+        id: r.id,
+        status: r.status,
+        consentDeadline: r.consent_deadline.toISOString(),
+        amountKobo: r.amount_kobo,
+        choice: r.choice as "pending" | "move" | "refund",
+        fromPot: { id: r.from_pot_id, name: r.from_pot_name },
+        toPot: { id: r.to_pot_id, name: r.to_pot_name, shareKobo: r.to_pot_share_kobo },
+      };
+    },
+  );
+
+  app.post(
+    "/rollovers/:rolloverId/choice",
+    {
+      ...auth,
+      schema: {
+        ...doc("Move your part into the new outing, or have it refunded"),
+        params: z.object({ rolloverId: z.uuid() }),
+        body: z.strictObject({ choice: z.enum(["move", "refund"]) }),
+        response: { 200: z.object({ ok: z.literal(true) }) },
+      },
+    },
+    async (req) => {
+      const refundIds = await chooseRollover(app.db, actorOf(req), req.params.rolloverId, req.body.choice);
+      await startRefunds(app.db, app.paystack, refundIds);
+      return { ok: true as const };
     },
   );
 
