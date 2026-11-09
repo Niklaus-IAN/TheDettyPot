@@ -7,6 +7,7 @@ import { HttpPaystackClient } from "./payments/paystack.js";
 import { expireStalePayments } from "./payments/service.js";
 import { processPendingWebhooks } from "./payments/webhooks.js";
 import { progressPayouts } from "./payouts/service.js";
+import { progressRefunds } from "./refunds/service.js";
 import { deliverEmails, sendDeadlinePassedAlerts, sendDeadlineWarnings, sendPaymentReminders } from "./worker/tasks.js";
 
 /**
@@ -31,6 +32,7 @@ const jobs: [string, () => Promise<unknown>][] = [
         ["paystack webhooks", () => processPendingWebhooks(db, paystack)],
         ["stale payments", () => expireStalePayments(db, paystack)],
         ["payouts", () => progressPayouts(db, paystack)],
+        ["refunds", () => progressRefunds(db, paystack)],
       ] as [string, () => Promise<unknown>][])
     : []),
   ["expire approvals", () => expireDueApprovals(db)],

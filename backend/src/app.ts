@@ -23,6 +23,7 @@ import { notificationRoutes } from "./routes/notifications.js";
 import { paymentRoutes } from "./routes/payments.js";
 import { payoutRoutes } from "./routes/payouts.js";
 import { potRoutes } from "./routes/pots.js";
+import { refundRoutes } from "./routes/refunds.js";
 import { waitlistRoutes } from "./routes/waitlist.js";
 import { webhookRoutes } from "./routes/webhooks.js";
 
@@ -148,6 +149,7 @@ export async function buildApp({ config, db, tokenVerifier, paystack }: AppDeps)
   await app.register(memberRoutes);
   await app.register(paymentRoutes);
   await app.register(payoutRoutes);
+  await app.register(refundRoutes);
   await app.register(notificationRoutes);
   await app.register(waitlistRoutes);
   await app.register(adminRoutes);

@@ -4,6 +4,7 @@ import type {
   InitializeInput,
   InitializeResult,
   PaystackClient,
+  RefundResult,
   ResolvedAccount,
   TransferInput,
   TransferResult,
@@ -80,9 +81,9 @@ export class FakePaystack implements PaystackClient {
   // ─── Transfers ───
 
   readonly banks: Bank[] = [
-    { name: "Guaranty Trust Bank", code: "058" },
-    { name: "Access Bank", code: "044" },
-    { name: "OPay Digital Services Limited (OPay)", code: "999992" },
+    { id: 9, name: "Guaranty Trust Bank", code: "058" },
+    { id: 1, name: "Access Bank", code: "044" },
+    { id: 171, name: "OPay Digital Services Limited (OPay)", code: "999992" },
   ];
   /** Accounts the fake "bank system" knows, by `${bankCode}:${accountNumber}`. */
   readonly accounts = new Map<string, string>();
@@ -134,6 +135,76 @@ export class FakePaystack implements PaystackClient {
 
   private result(t: { status: string; transferCode: string; reference: string; amountKobo: number; feeKobo: number | null }): TransferResult {
     return { status: t.status, transferCode: t.transferCode, reference: t.reference, amountKobo: t.amountKobo, feeKobo: t.feeKobo };
+  }
+
+  // ─── Refunds ───
+
+  readonly refunds = new Map<
+    number,
+    { transactionReference: string; amountKobo: number; status: string; merchantNote: string; account?: { accountNumber: string; bankId: number } }
+  >();
+  /** When set, the next refund is created at Paystack but the reply never arrives. */
+  loseNextRefundReply = false;
+  /** How new refunds start out: most go straight to pending; bank transfers may need the customer's account. */
+  refundMode: "pending" | "needs-attention" | "reject" = "pending";
+  private nextRefund = 5000;
+
+  async createRefund(input: { transactionReference: string; amountKobo: number; merchantNote: string }): Promise<RefundResult> {
+    if (this.refundMode === "reject") throw new PaystackError("Refund cannot be processed for this transaction", 400);
+    const tx = this.transactions.get(input.transactionReference);
+    if (!tx || tx.status !== "success") throw new PaystackError("Transaction not found or not successful", 400);
+    const id = this.nextRefund++;
+    this.refunds.set(id, { transactionReference: input.transactionReference, amountKobo: input.amountKobo, status: this.refundMode, merchantNote: input.merchantNote });
+    if (this.loseNextRefundReply) {
+      this.loseNextRefundReply = false;
+      throw new PaystackError("Paystack unreachable: reply lost", null);
+    }
+    return this.refundResult(id);
+  }
+
+  async fetchRefund(id: number): Promise<RefundResult> {
+    if (this.verifyOutages > 0) {
+      this.verifyOutages--;
+      throw new PaystackError("Paystack unreachable: simulated outage", null);
+    }
+    if (!this.refunds.has(id)) throw new PaystackError("Refund not found", 404);
+    return this.refundResult(id);
+  }
+
+  async listRefundsSince(): Promise<(RefundResult & { merchantNote: string | null })[]> {
+    return [...this.refunds.keys()].map((id) => ({ ...this.refundResult(id), merchantNote: this.refunds.get(id)!.merchantNote }));
+  }
+
+  async retryRefundWithAccount(id: number, account: { accountNumber: string; bankId: number }): Promise<RefundResult> {
+    const r = this.refunds.get(id);
+    if (!r) throw new PaystackError("Refund not found", 404);
+    r.account = account;
+    r.status = "processing";
+    return this.refundResult(id);
+  }
+
+  private refundResult(id: number): RefundResult {
+    const r = this.refunds.get(id)!;
+    return { id, status: r.status, amountKobo: r.amountKobo, deductedKobo: r.amountKobo };
+  }
+
+  /** Finds the refund Paystack made for a payment. */
+  refundFor(transactionReference: string) {
+    const entry = [...this.refunds.entries()].find(([, r]) => r.transactionReference === transactionReference);
+    return entry ? { id: entry[0], ...entry[1] } : undefined;
+  }
+
+  /** The refund completes (or fails) at Paystack; returns the signed webhook about it. */
+  finishRefund(id: number, status: "processed" | "failed") {
+    const r = this.refunds.get(id)!;
+    r.status = status;
+    return this.webhook(`refund.${status}`, {
+      status,
+      transaction_reference: r.transactionReference,
+      refund_reference: `RFN${id}`,
+      amount: String(r.amountKobo), // Paystack's sample sends this one as a string
+      currency: "NGN",
+    });
   }
 
   /** The bank finishes the transfer; returns Paystack's signed webhook about it. */

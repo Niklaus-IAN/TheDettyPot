@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import type { Selectable } from "kysely";
+import type { Selectable, Transaction } from "kysely";
 import { recordAudit } from "../audit.js";
 import { authorizePot } from "../auth/pot-access.js";
 import { canRemoveMember, type PotRole } from "../auth/permissions.js";
@@ -7,6 +7,7 @@ import type { Database, Db } from "../db/index.js";
 import { AppError, conflict, forbidden, notFound } from "../errors.js";
 import { notifyEmailAddress, notifyPotMembers, notifyUser } from "../notifications/service.js";
 import { paidByMember } from "../pots/money.js";
+import { refundMember } from "../refunds/service.js";
 import { CLOSED, JOINABLE, lockPot, type Actor, type PotRow, type Stage } from "../pots/service.js";
 import type { User } from "../users/service.js";
 
@@ -54,15 +55,24 @@ async function assertRoomFor(db: Db, pot: PotRow) {
   }
 }
 
-/** Money can't leave a member's hands without refunds, which arrive with payments (MON-16). */
-async function assertNothingPaid(db: Db, potId: string, userId: string) {
-  const paid = (await paidByMember(db, [potId])).get(potId)?.get(userId) ?? 0;
-  if (paid > 0) {
-    throw conflict(
-      "MEMBER_HAS_PAID",
-      "This member has paid into the pot. Leaving or removal will refund them, which isn't available yet.",
-    );
+/**
+ * MON-16: someone leaving or removed before any payout gets their share back
+ * (the fee isn't refundable). Once money has started going out, what they paid
+ * is committed to the outing.
+ */
+async function refundIfPaid(trx: Transaction<Database>, pot: PotRow, userId: string, reason: "member_left" | "member_removed") {
+  const paid = (await paidByMember(trx, [pot.id])).get(pot.id)?.get(userId) ?? 0;
+  if (paid <= 0) return [];
+  const payoutsStarted = await trx
+    .selectFrom("payouts")
+    .select("id")
+    .where("pot_id", "=", pot.id)
+    .where("status", "not in", ["cancelled", "rejected", "failed"])
+    .executeTakeFirst();
+  if (!["planning", "collecting"].includes(pot.stage) || payoutsStarted) {
+    throw conflict("MEMBER_HAS_PAID", "This member's money is already committed to the outing, so they can't be refunded now");
   }
+  return refundMember(trx, { potId: pot.id, userId, amountKobo: paid, reason });
 }
 
 /** Closes any open vote about someone who is no longer in the pot. */
@@ -450,8 +460,8 @@ export async function decideJoinRequest(
 // Leaving and removal
 // ─────────────────────────────────────────────
 
-export async function removeMember(db: Db, actor: Actor, potId: string, userId: string): Promise<void> {
-  await db.transaction().execute(async (trx) => {
+export async function removeMember(db: Db, actor: Actor, potId: string, userId: string): Promise<string[]> {
+  return db.transaction().execute(async (trx) => {
     const access = await authorizePot(trx, actor.user, potId, "member.remove");
     const pot = await lockPot(trx, potId);
     if (CLOSED.includes(pot.stage as Stage)) throw conflict("POT_CLOSED", `This pot is ${pot.stage}`);
@@ -469,7 +479,7 @@ export async function removeMember(db: Db, actor: Actor, potId: string, userId: 
     if (!canRemoveMember(access.role, target.role as PotRole)) {
       throw forbidden(target.role === "organiser" ? "The organiser can't be removed" : "Your role can't remove this member");
     }
-    await assertNothingPaid(trx, potId, userId);
+    const refundIds = await refundIfPaid(trx, pot, userId, "member_removed");
 
     await trx
       .updateTable("pot_members")
@@ -485,19 +495,20 @@ export async function removeMember(db: Db, actor: Actor, potId: string, userId: 
       subjectType: "user",
       subjectId: userId,
       requestId: actor.requestId,
-      metadata: { role: target.role },
+      metadata: { role: target.role, refunds: refundIds.length },
     });
+    return refundIds;
   });
 }
 
-export async function leavePot(db: Db, actor: Actor, potId: string): Promise<void> {
-  await db.transaction().execute(async (trx) => {
+export async function leavePot(db: Db, actor: Actor, potId: string): Promise<string[]> {
+  return db.transaction().execute(async (trx) => {
     const access = await authorizePot(trx, actor.user, potId, "pot.view");
     const pot = await lockPot(trx, potId);
     if (access.role === "organiser") {
       throw conflict("ORGANISER_CANNOT_LEAVE", "Hand the pot over to someone else before leaving it");
     }
-    if (!CLOSED.includes(pot.stage as Stage)) await assertNothingPaid(trx, potId, actor.user.id);
+    const refundIds = CLOSED.includes(pot.stage as Stage) ? [] : await refundIfPaid(trx, pot, actor.user.id, "member_left");
 
     await trx
       .updateTable("pot_members")
@@ -506,6 +517,7 @@ export async function leavePot(db: Db, actor: Actor, potId: string): Promise<voi
       .execute();
     await cancelOpenRequestsAbout(trx, potId, actor.user.id);
     await notifyPotMembers(trx, potId, "member_left", { userId: actor.user.id, name: actor.user.full_name }, { roles: ORGANISER_ROLES });
-    await recordAudit(trx, { actorUserId: actor.user.id, action: "member.left", potId, requestId: actor.requestId });
+    await recordAudit(trx, { actorUserId: actor.user.id, action: "member.left", potId, requestId: actor.requestId, metadata: { refunds: refundIds.length } });
+    return refundIds;
   });
 }

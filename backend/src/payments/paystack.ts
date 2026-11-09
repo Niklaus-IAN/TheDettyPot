@@ -37,6 +37,17 @@ export interface VerifiedTransaction {
 export interface Bank {
   name: string;
   code: string;
+  /** Paystack's own id for the bank; refund retries use this rather than the code. */
+  id: number;
+}
+
+export interface RefundResult {
+  id: number;
+  /** e.g. pending, processing, processed, failed, needs-attention */
+  status: string;
+  amountKobo: number;
+  /** What Paystack took from the balance for this refund. */
+  deductedKobo: number | null;
 }
 
 export interface ResolvedAccount {
@@ -70,6 +81,13 @@ export interface PaystackClient {
   createTransferRecipient(input: { name: string; accountNumber: string; bankCode: string }): Promise<string>;
   initiateTransfer(input: TransferInput): Promise<TransferResult>;
   verifyTransfer(reference: string): Promise<TransferResult>;
+  /** Refunds part or all of a completed transaction, by its reference. */
+  createRefund(input: { transactionReference: string; amountKobo: number; merchantNote: string }): Promise<RefundResult>;
+  fetchRefund(id: number): Promise<RefundResult>;
+  /** For a refund in needs-attention: the customer's account to send it to. */
+  retryRefundWithAccount(id: number, account: { accountNumber: string; bankId: number }): Promise<RefundResult>;
+  /** Refunds created since a moment, with the note we attached; used to find out whether an unanswered request went through. */
+  listRefundsSince(from: Date): Promise<(RefundResult & { merchantNote: string | null })[]>;
 }
 
 export class PaystackError extends Error {
@@ -150,11 +168,13 @@ export class HttpPaystackClient implements PaystackClient {
   }
 
   async listBanks(): Promise<Bank[]> {
-    const data = await this.call<{ name: string; code: string; active: boolean; supports_transfer?: boolean; is_deleted?: boolean }[]>(
+    const data = await this.call<{ id: number; name: string; code: string; active: boolean; supports_transfer?: boolean; is_deleted?: boolean }[]>(
       "GET",
       "/bank?country=nigeria&currency=NGN&perPage=500",
     );
-    return data.filter((b) => b.active && !b.is_deleted && b.supports_transfer !== false).map((b) => ({ name: b.name, code: b.code }));
+    return data
+      .filter((b) => b.active && !b.is_deleted && b.supports_transfer !== false)
+      .map((b) => ({ id: b.id, name: b.name, code: b.code }));
   }
 
   async resolveAccount(accountNumber: string, bankCode: string): Promise<ResolvedAccount> {
@@ -191,7 +211,53 @@ export class HttpPaystackClient implements PaystackClient {
   async verifyTransfer(reference: string): Promise<TransferResult> {
     return toTransfer(await this.call<TransferData>("GET", `/transfer/verify/${encodeURIComponent(reference)}`));
   }
+
+  async createRefund(input: { transactionReference: string; amountKobo: number; merchantNote: string }): Promise<RefundResult> {
+    return toRefund(
+      await this.call<RefundData>("POST", "/refund", {
+        transaction: input.transactionReference,
+        amount: input.amountKobo,
+        currency: "NGN",
+        merchant_note: input.merchantNote,
+      }),
+    );
+  }
+
+  async fetchRefund(id: number): Promise<RefundResult> {
+    return toRefund(await this.call<RefundData>("GET", `/refund/${id}`));
+  }
+
+  async listRefundsSince(from: Date): Promise<(RefundResult & { merchantNote: string | null })[]> {
+    const data = await this.call<RefundListItem[]>("GET", `/refund?perPage=100&from=${encodeURIComponent(from.toISOString())}`);
+    return data.map((d) => ({ ...toRefund(d), merchantNote: d.merchant_note ?? null }));
+  }
+
+  async retryRefundWithAccount(id: number, account: { accountNumber: string; bankId: number }): Promise<RefundResult> {
+    return toRefund(
+      await this.call<RefundData>("POST", `/refund/retry_with_customer_details/${id}`, {
+        refund_account_details: { currency: "NGN", account_number: account.accountNumber, bank_id: String(account.bankId) },
+      }),
+    );
+  }
 }
+
+interface RefundListItem extends RefundData {
+  merchant_note?: string | null;
+}
+
+interface RefundData {
+  id: number;
+  status: string;
+  amount: number | string;
+  deducted_amount?: number | string | null;
+}
+
+const toRefund = (d: RefundData): RefundResult => ({
+  id: d.id,
+  status: d.status,
+  amountKobo: Number(d.amount),
+  deductedKobo: d.deducted_amount === null || d.deducted_amount === undefined ? null : Number(d.deducted_amount),
+});
 
 interface TransferData {
   status: string;

@@ -365,14 +365,6 @@ describe("cancelling a pot", () => {
     expect((await api(co, "POST", `/pots/${pot.id}/cancel`, {})).statusCode).toBe(403);
   });
 
-  it("is refused while the pot holds money, until automatic refunds exist", async () => {
-    const { pot, organiser, member } = await setupPot();
-    await recordContribution(t.db, pot.id, member.id, naira(5_000));
-    const res = await api(organiser, "POST", `/pots/${pot.id}/cancel`, {});
-    expect(res.statusCode).toBe(409);
-    expect(res.json().error.code).toBe("CANCEL_NEEDS_REFUNDS");
-  });
-
   it("is final", async () => {
     const { pot, organiser } = await setupPot({ fundingDeadline: inDays(7).toISOString() });
     await api(organiser, "POST", `/pots/${pot.id}/cancel`, {});

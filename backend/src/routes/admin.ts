@@ -6,6 +6,7 @@ import {
   feeSchedules,
   paymentsByStatus,
   payoutsByStatus,
+  refundsByStatus,
   potRecord,
   searchPots,
   searchUsers,
@@ -126,6 +127,17 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
       if (status === "ready" && app.paystack) status = await sendPayout(app.db, app.paystack, req.params.payoutId);
       return { status };
     },
+  );
+
+  app.get(
+    "/admin/refunds",
+    {
+      schema: {
+        ...doc("Refunds by status; 'failed' and 'needs_details' may need a person"),
+        querystring: z.object({ status: z.enum(["failed", "needs_details", "reserved", "requested", "processed"]).default("failed") }),
+      },
+    },
+    async (req) => refundsByStatus(app.db, req.query.status),
   );
 
   app.get(

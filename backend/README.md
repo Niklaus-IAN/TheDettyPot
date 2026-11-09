@@ -132,9 +132,12 @@ All amounts are integers in **kobo** (₦1 = 100 kobo). Full, interactive refere
 | `GET /banks`, `POST /pots/:id/payouts/resolve-account` | Banks, and the real name on an account before paying it |
 | `POST /pots/:id/payouts`, `GET /pots/:id/payouts` | Pay money out (organiser), and every payout for all members to see |
 | `POST /pots/:id/payouts/:payoutId/flag`, `…/cancel` | Any member flags a payout on hold; the organiser withdraws an unsent one |
+| `POST /pots/:id/settle` | Refund what's left after the outing, in proportion (organiser) |
+| `GET /refunds/mine`, `POST /refunds/:refundId/account` | Your refunds; where to send one your bank can't receive automatically |
 | `POST /webhooks/paystack` | Paystack's signed notifications (not for clients) |
 | `GET/POST /admin/fees`, `GET /admin/payments`, `GET /admin/webhooks` | Fee schedules; payments held for review; webhooks that ran out of retries |
 | `GET /admin/payouts`, `POST /admin/payouts/:id/release\|cancel\|retry` | Flagged and stuck payouts, and support's decision on them |
+| `GET /admin/refunds` | Refunds that failed or are waiting on a member's account details |
 | `POST /waitlist` | The website's waitlist form (no sign-in) |
 | `GET /admin/pots`, `/admin/pots/:id`, `/admin/users`, `/admin/audit` | Support tools: search, a pot's full record, the audit log (admins only) |
 | `POST /admin/pots/:id/freeze`, `…/unfreeze` | Pause a pot: read-only for its members until lifted |
@@ -209,7 +212,26 @@ The rules (MON-01 to MON-18 in the BRD) and where they live:
   the reserved money; DettyPot pays the transfer fee, never the pot. Failure
   returns it to the pot, and so does a bank reversal of a completed payout.
 
-Coming next: refunds and settle-up, and a daily reconciliation against Paystack.
+### Refunds
+
+- **Cancelling** a pot that holds money refunds everyone what's left, in
+  proportion to what they paid (MON-15). It waits for payouts in progress first.
+- **Leaving or being removed** before any payout refunds that member's share
+  (MON-16). Once the pot is funded or money has gone out, it's committed.
+- **Leftover money** after the outing is refunded in proportion when the
+  organiser settles up (MON-17). Splits are exact to the kobo.
+- The **service fee is never refunded**: refunds go against the payments the
+  money came from, never more than each payment's share, and the database
+  refuses anything more.
+- Money is **reserved, then settled** when Paystack confirms, or put back in the
+  pot if the refund fails (support sees those at `/admin/refunds`).
+- **Never twice:** each refund carries its own id in Paystack's note; if an answer
+  is lost, the worker looks for that refund before asking again.
+- When the bank needs the member's account (common for bank transfers), they're
+  asked, the account is checked with the bank, and Paystack retries.
+
+Coming next: rolling leftover money into a new outing (with each contributor's
+consent), and a daily reconciliation against Paystack.
 
 ## Who can do what
 

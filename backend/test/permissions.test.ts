@@ -18,6 +18,7 @@ const EXPECTED: Record<PotAction, string> = {
   "pot.advance_stage": "OC",
   "pot.cancel": "O",
   "pot.proceed_with_less": "O",
+  "pot.settle": "O",
   "pot.change_settings": "O",
   "invite.manage": "OC",
   "member.approve_join": "OC",

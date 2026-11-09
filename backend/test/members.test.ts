@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { apiFor, inDays, type Person } from "./api.js";
-import { naira, recordContribution, setStage } from "./fixtures.js";
+import { naira, setStage } from "./fixtures.js";
 import { makeTestApp, type TestApp } from "./helpers.js";
 
 let t: TestApp;
@@ -281,12 +281,6 @@ describe("removing members", () => {
     expect((await h.membership(pot.id, co.id))?.role).toBe("member");
   });
 
-  it("is refused for someone who has paid in, until refunds exist", async () => {
-    const { pot, organiser, member } = await scene();
-    await recordContribution(t.db, pot.id, member.id, naira(5_000));
-    const res = await h.call(organiser, "POST", `/pots/${pot.id}/members/${member.id}/remove`);
-    expect(res.json().error.code).toBe("MEMBER_HAS_PAID");
-  });
 });
 
 // ─────────────────────────────────────────────
@@ -303,9 +297,4 @@ describe("leaving", () => {
     expect((await h.call(organiser, "POST", `/pots/${pot.id}/leave`)).json().error.code).toBe("ORGANISER_CANNOT_LEAVE");
   });
 
-  it("is refused for someone who has paid into an open pot", async () => {
-    const { pot, member } = await scene();
-    await recordContribution(t.db, pot.id, member.id, naira(1_000));
-    expect((await h.call(member, "POST", `/pots/${pot.id}/leave`)).json().error.code).toBe("MEMBER_HAS_PAID");
-  });
 });
