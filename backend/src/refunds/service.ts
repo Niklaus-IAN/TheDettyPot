@@ -94,6 +94,8 @@ export async function refundMember(
       ]),
     )
     .orderBy("p.paid_at", "desc")
+    // Two payments confirmed in the same millisecond still come out in a fixed order.
+    .orderBy("p.created_at", "desc")
     .execute();
 
   const member = await trx.selectFrom("users").select("full_name").where("id", "=", input.userId).executeTakeFirstOrThrow();

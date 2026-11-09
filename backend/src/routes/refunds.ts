@@ -24,7 +24,8 @@ export const refundRoutes: FastifyPluginAsyncZod = async (app) => {
             z.strictObject({ mode: z.literal("refund") }),
             z.strictObject({ mode: z.literal("rollover"), targetPotId: z.uuid() }),
           ])
-          .optional(),
+          // No body at all means the original behaviour: refund.
+          .nullish(),
         response: {
           200: z.object({
             mode: z.enum(["refund", "rollover"]),

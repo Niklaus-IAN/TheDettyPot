@@ -86,12 +86,16 @@ describe("leaving or being removed before any payout (MON-16)", () => {
     const second = await pay(ada, pot.id, naira(5_000));
 
     expect((await h.call(ada, "POST", `/pots/${pot.id}/leave`)).statusCode).toBe(200);
-    const refunds = await refundsOf(ada.id, pot.id);
-    expect(refunds.map((r) => [r.amount_kobo, r.status, r.reason])).toEqual([
-      [naira(5_000), "requested", "member_left"],
-      [naira(10_000), "requested", "member_left"],
-    ]);
-    expect(paystack.refundFor(second)).toMatchObject({ amountKobo: naira(5_000), merchantNote: `DettyPot refund ${refunds[0]!.id}` });
+    // Both refunds are created in one transaction, so they share a timestamp:
+    // match each to its payment rather than relying on their order.
+    const refundFor = async (reference: string) => {
+      const payment = await t.db.selectFrom("payments").select("id").where("reference", "=", reference).executeTakeFirstOrThrow();
+      return t.db.selectFrom("refunds").selectAll().where("payment_id", "=", payment.id).executeTakeFirstOrThrow();
+    };
+    const [newer, older] = [await refundFor(second), await refundFor(first)];
+    expect([newer.amount_kobo, newer.status, newer.reason]).toEqual([naira(5_000), "requested", "member_left"]);
+    expect([older.amount_kobo, older.status, older.reason]).toEqual([naira(10_000), "requested", "member_left"]);
+    expect(paystack.refundFor(second)).toMatchObject({ amountKobo: naira(5_000), merchantNote: `DettyPot refund ${newer.id}` });
     expect(paystack.refundFor(first)?.amountKobo).toBe(naira(10_000)); // the share only; the ₦101 fee stays
     expect(await h.typesFor(ada.id, pot.id)).toContain("refund_started");
   });
