@@ -11,6 +11,8 @@ import {
   getPot,
   listMyPots,
   MAX_BUDGET_KOBO,
+  REMINDER_FREQUENCIES,
+  setReminderFrequency,
   STAGES,
   updatePot,
   updateSettings,
@@ -110,6 +112,7 @@ const potSummary = z.object({
 });
 
 const potDetail = potSummary.extend({
+  myReminderFrequency: z.enum(REMINDER_FREQUENCIES),
   members: z.array(
     z.object({
       userId: z.uuid(),
@@ -153,6 +156,7 @@ const toSummary = (v: PotView): PotSummary => ({
 
 const toDetail = (v: PotDetailView): z.infer<typeof potDetail> => ({
   ...toSummary(v),
+  myReminderFrequency: v.myReminderFrequency,
   members: v.members.map((m) => ({ ...m, joinedAt: m.joinedAt?.toISOString() ?? null })),
 });
 
@@ -213,6 +217,23 @@ export const potRoutes: FastifyPluginAsyncZod = async (app) => {
     async (req) => {
       await advanceStage(app.db, actorOf(req), req.params.potId, req.body.to);
       return toDetail(await getPot(app.db, requireUser(req), req.params.potId));
+    },
+  );
+
+  app.patch(
+    "/pots/:potId/me",
+    {
+      ...common,
+      schema: {
+        ...doc("Your own settings in this pot: how often you're reminded to pay"),
+        params: potParams,
+        body: z.strictObject({ reminderFrequency: z.enum(REMINDER_FREQUENCIES) }),
+        response: { 200: z.object({ reminderFrequency: z.enum(REMINDER_FREQUENCIES) }) },
+      },
+    },
+    async (req) => {
+      await setReminderFrequency(app.db, requireUser(req), req.params.potId, req.body.reminderFrequency);
+      return { reminderFrequency: req.body.reminderFrequency };
     },
   );
 
