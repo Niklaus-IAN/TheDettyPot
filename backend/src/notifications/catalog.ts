@@ -174,6 +174,13 @@ export const NOTIFICATIONS = {
   co_organiser_removed: { email: true, title: (c) => `You're no longer a co-organiser of ${potName(c)}` },
 
   // ─── Support ───
+  reconciliation_alert: {
+    email: true,
+    title: (c) =>
+      c.payload.error ? "Reconciliation with Paystack failed to run" : `Reconciliation found ${String(c.payload.findings)} thing(s) to check`,
+    body: (c) => (typeof c.payload.error === "string" ? `Error: ${c.payload.error}` : "Open the admin reconciliation page to review them."),
+    link: (c) => new URL("/admin/reconciliation", c.webBaseUrl).toString(),
+  },
   pot_frozen: {
     email: true,
     title: (c) => `${potName(c)} is paused while DettyPot support takes a look`,

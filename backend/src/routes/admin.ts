@@ -16,6 +16,8 @@ import {
 } from "../admin/service.js";
 import { requireUser } from "../auth/plugin.js";
 import { adminDecidePayout, sendPayout } from "../payouts/service.js";
+import { reconcile, reconciliationOverview, resolveFinding } from "../reconciliation/service.js";
+import { AppError } from "../errors.js";
 
 /** Internal support tools. Hidden (404) from anyone who isn't an admin. */
 export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
@@ -138,6 +140,31 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (req) => refundsByStatus(app.db, req.query.status),
+  );
+
+  app.get("/admin/reconciliation", { schema: { ...doc("Recent reconciliation runs and findings still open") } }, async () =>
+    reconciliationOverview(app.db),
+  );
+
+  app.post("/admin/reconciliation/run", { schema: { ...doc("Run reconciliation with Paystack now") } }, async () => {
+    if (!app.paystack) throw new AppError(503, "PAYMENTS_UNAVAILABLE", "Paystack isn't configured");
+    return reconcile(app.db, app.paystack);
+  });
+
+  app.post(
+    "/admin/reconciliation/findings/:findingId/resolve",
+    {
+      schema: {
+        ...doc("Record how a finding was resolved"),
+        params: z.object({ findingId: z.uuid() }),
+        body: z.strictObject({ resolution: z.string().trim().min(3).max(1000) }),
+        response: { 200: z.object({ ok: z.literal(true) }) },
+      },
+    },
+    async (req) => {
+      await resolveFinding(app.db, requireUser(req), req.params.findingId, req.body.resolution, req.id);
+      return { ok: true as const };
+    },
   );
 
   app.get(

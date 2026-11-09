@@ -263,6 +263,29 @@ export interface Pots {
   vibe: Generated<string>;
 }
 
+export interface ReconciliationFindings {
+  created_at: Generated<Timestamp>;
+  details: Generated<Json>;
+  id: Generated<string>;
+  kind: string;
+  resolution: string | null;
+  resolved_at: Timestamp | null;
+  resolved_by: string | null;
+  run_id: string;
+  subject_id: string | null;
+  subject_type: string | null;
+}
+
+export interface ReconciliationRuns {
+  finished_at: Timestamp | null;
+  id: Generated<string>;
+  started_at: Generated<Timestamp>;
+  status: Generated<string>;
+  summary: Generated<Json>;
+  window_from: Timestamp;
+  window_to: Timestamp;
+}
+
 export interface Refunds {
   amount_kobo: number;
   completed_at: Timestamp | null;
@@ -353,6 +376,8 @@ export interface DB {
   pot_invites: PotInvites;
   pot_members: PotMembers;
   pots: Pots;
+  reconciliation_findings: ReconciliationFindings;
+  reconciliation_runs: ReconciliationRuns;
   refunds: Refunds;
   settlements: Settlements;
   users: Users;
