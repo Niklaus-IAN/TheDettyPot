@@ -15,6 +15,7 @@ import type { Db } from "./db/index.js";
 import { AppError, type ErrorBody } from "./errors.js";
 import { healthRoutes } from "./routes/health.js";
 import { meRoutes } from "./routes/me.js";
+import { memberRoutes } from "./routes/members.js";
 import { potRoutes } from "./routes/pots.js";
 
 declare module "fastify" {
@@ -111,6 +112,7 @@ export async function buildApp({ config, db, tokenVerifier }: AppDeps): Promise<
   await app.register(healthRoutes);
   await app.register(meRoutes);
   await app.register(potRoutes);
+  await app.register(memberRoutes);
 
   return app;
 }

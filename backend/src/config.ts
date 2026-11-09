@@ -19,6 +19,8 @@ const configSchema = z
     LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
     DATABASE_URL: z.string().regex(/^postgres(ql)?:\/\//, "must be a postgres:// connection string"),
     ENABLE_DOCS: z.stringbool().default(false),
+    // The website's address, used to build links such as invite links.
+    WEB_BASE_URL: z.url().default("http://localhost:5173"),
     // Sign-in tokens are issued by an OpenID Connect provider (Cognito or similar).
     AUTH_ISSUER: z.url(),
     AUTH_AUDIENCE: z.string().min(1),

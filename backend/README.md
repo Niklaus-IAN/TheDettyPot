@@ -87,12 +87,30 @@ All amounts are integers in **kobo** (₦1 = 100 kobo). Full, interactive refere
 | `PATCH /pots/:id/settings` | Join approval and payout approval (organiser only) |
 | `POST /pots/:id/stage` | Move to the next stage, once that stage's conditions are met |
 | `POST /pots/:id/cancel` | Cancel (organiser only) |
+| `POST /pots/:id/invites`, `GET`, `…/:inviteId/revoke` | Invite links: optional use limit and expiry; the token is shown once |
+| `GET /invites/:token` | Public preview for the invite page (no sign-in): name, date, share, member count |
+| `POST /invites/:token/join` | Join; waits for approval if the pot asks for it |
+| `GET /pots/:id/join-requests`, `…/:userId/approve`, `…/decline` | Organisers handle people waiting to join |
+| `POST /pots/:id/members/:userId/remove`, `POST /pots/:id/leave` | Remove a member, or leave |
+| `POST /pots/:id/co-organisers` | Nominate a co-organiser; members vote |
+| `GET /pots/:id/approvals`, `…/:requestId/votes`, `…/cancel` | See, vote on, or withdraw decisions |
+| `POST /pots/:id/members/:userId/demote` | Take co-organiser rights back (no vote needed) |
 
 Stage conditions: collecting needs a future funding deadline; funded needs the
 target met, or, after the deadline, the organiser choosing to go ahead with what
 was raised; completed needs the outing date to have arrived. Payout approval can
 be switched on at any time but off only while planning. A pot holding money
 can't be cancelled until automatic refunds arrive with payments.
+
+Joining: only with a valid invite link, only while the pot is planning or
+collecting, and never past the headcount. Someone the organiser removed can't
+use a shared link to get back in. Members who have paid in can't leave or be
+removed until refunds exist.
+
+Co-organisers: the organiser nominates a member; a majority of the other active
+members must approve within 72 hours, and the organiser's nomination counts as
+their yes (so in a two-person pot it passes at once). Only people who were in
+the pot when the vote opened can vote.
 
 ## Who can do what
 
