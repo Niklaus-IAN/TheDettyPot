@@ -25,6 +25,7 @@
     "admin:grant": "tsx --env-file-if-exists=.env scripts/grant-admin.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.6.0",
     "@fastify/rate-limit": "^11.2.2",
     "@fastify/swagger": "^9.9.2",
     "@fastify/swagger-ui": "^6.1.2",

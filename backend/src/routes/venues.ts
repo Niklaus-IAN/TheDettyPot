@@ -10,6 +10,7 @@ import {
   addVenue,
   answerDate,
   listDateOptions,
+  getPlaceForPot,
   listVenues,
   removeDateOption,
   removeVenue,
@@ -29,7 +30,7 @@ const ok = z.object({ ok: z.literal(true) });
 /** A photo the browser can load through us; the response must show the author credit. */
 const photoUrl = (name: string, width = 800) => `/places/photo?name=${encodeURIComponent(name)}&w=${width}`;
 
-const placeSchema = z.object({
+export const placeSchema = z.object({
   id: z.string(),
   name: z.string(),
   address: z.string().nullable(),
@@ -49,7 +50,7 @@ const placeSchema = z.object({
   attribution: z.literal("Google Maps"),
 });
 
-const toPlace = (p: Place): z.infer<typeof placeSchema> => ({
+export const toPlace = (p: Place): z.infer<typeof placeSchema> => ({
   ...p,
   photos: p.photos.map((ph) => ({ url: photoUrl(ph.name), attributions: ph.authorAttributions })),
   attribution: "Google Maps",
@@ -102,6 +103,16 @@ export const venueRoutes: FastifyPluginAsyncZod = async (app) => {
       schema: { ...doc("Search real places (Google Maps), near the pot's area"), params: potParams, querystring: z.object({ q: z.string().trim().min(2).max(120) }), response: { 200: z.array(placeSchema) } },
     },
     async (req) => (await searchPlaces(app.db, app.places, requireUser(req), req.params.potId, req.query.q)).map(toPlace),
+  );
+
+  app.get(
+    "/pots/:potId/places/:placeId",
+    {
+      ...auth,
+      config: { rateLimit: { max: 60, timeWindow: "1 minute" } },
+      schema: { ...doc("One place's live details from Google Maps"), params: potParams.extend({ placeId: z.string().min(1).max(300).regex(/^[A-Za-z0-9_-]+$/) }), response: { 200: placeSchema } },
+    },
+    async (req) => toPlace(await getPlaceForPot(app.db, app.places, requireUser(req), req.params.potId, req.params.placeId)),
   );
 
   // Images can't send a sign-in header, so this is open, rate-limited, and only fetches Google photos.

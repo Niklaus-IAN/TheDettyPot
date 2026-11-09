@@ -18,6 +18,7 @@ import { requireUser } from "../auth/plugin.js";
 import { adminDecidePayout, sendPayout } from "../payouts/service.js";
 import { reconcile, reconciliationOverview, resolveFinding } from "../reconciliation/service.js";
 import { AppError } from "../errors.js";
+import { aiUsageReport } from "../planner/service.js";
 
 /** Internal support tools. Hidden (404) from anyone who isn't an admin. */
 export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
@@ -140,6 +141,17 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (req) => refundsByStatus(app.db, req.query.status),
+  );
+
+  app.get(
+    "/admin/ai-usage",
+    {
+      schema: {
+        ...doc("What the AI planner has cost: by model and purpose, and the most expensive pots"),
+        querystring: z.object({ days: z.coerce.number().int().min(1).max(90).default(30) }),
+      },
+    },
+    async (req) => aiUsageReport(app.db, req.query.days),
   );
 
   app.get("/admin/reconciliation", { schema: { ...doc("Recent reconciliation runs and findings still open") } }, async () =>

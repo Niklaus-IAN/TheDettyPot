@@ -12,7 +12,7 @@ const LIVE = ["planning", "collecting", "funded", "confirmed"] as const;
  */
 export async function exportMyData(db: Db, user: Actor["user"]) {
   const id = user.id;
-  const [memberships, payments, refunds, payouts, votes, invites, bankAccounts, notifications, activity] = await Promise.all([
+  const [memberships, payments, refunds, payouts, votes, invites, bankAccounts, notifications, activity, plannerQuestions] = await Promise.all([
     db
       .selectFrom("pot_members as m")
       .innerJoin("pots as p", "p.id", "m.pot_id")
@@ -39,6 +39,7 @@ export async function exportMyData(db: Db, user: Actor["user"]) {
     db.selectFrom("bank_accounts").select(["bank_name", "account_name", "account_number", "created_at"]).where("created_by", "=", id).execute(),
     db.selectFrom("notifications").select(["type", "pot_id", "payload", "read_at", "created_at"]).where("user_id", "=", id).orderBy("created_at", "desc").limit(1000).execute(),
     db.selectFrom("audit_events").select(["action", "pot_id", "occurred_at"]).where("actor_user_id", "=", id).orderBy("occurred_at").execute(),
+    db.selectFrom("planner_messages").select(["pot_id", "content", "created_at"]).where("author_id", "=", id).orderBy("created_at").execute(),
   ]);
 
   return {
@@ -60,6 +61,7 @@ export async function exportMyData(db: Db, user: Actor["user"]) {
     bankAccounts: bankAccounts.map(({ account_number, ...rest }) => ({ ...rest, accountNumberLast4: account_number.slice(-4) })),
     notifications,
     activity,
+    plannerQuestions,
   };
 }
 
@@ -131,6 +133,14 @@ export async function deleteMyAccount(db: Db, actor: Actor): Promise<void> {
         .where("status", "=", "open")
         .execute();
     }
+
+    // What they asked the planner is theirs: the words go, from the chat and from the AI logs.
+    await trx
+      .updateTable("planner_messages")
+      .set((eb) => ({ content: "Message removed", status: eb.case().when("status", "=", "pending").then("failed").else(eb.ref("status")).end(), lease_until: null }))
+      .where("author_id", "=", user.id)
+      .execute();
+    await trx.updateTable("ai_calls").set({ request: null, response: null }).where("user_id", "=", user.id).execute();
 
     // Their own inbox goes; nobody else needs it.
     const inbox = trx.selectFrom("notifications").select("id").where("user_id", "=", user.id);

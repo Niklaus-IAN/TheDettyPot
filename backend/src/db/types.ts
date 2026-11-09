@@ -23,6 +23,28 @@ export type JsonValue = JsonArray | JsonObject | JsonPrimitive;
 
 export type Timestamp = ColumnType<Date, Date | string, Date | string>;
 
+export interface AiCalls {
+  cache_read_tokens: number | null;
+  cache_write_tokens: number | null;
+  cost_nano_usd: number | null;
+  created_at: Generated<Timestamp>;
+  duration_ms: number;
+  error: string | null;
+  id: Generated<string>;
+  input_tokens: number | null;
+  message_id: string | null;
+  model: string | null;
+  output_tokens: number | null;
+  pot_id: string | null;
+  prompt_version: string;
+  purpose: string;
+  request: Json | null;
+  requested_model: string;
+  response: Json | null;
+  stop_reason: string | null;
+  user_id: string | null;
+}
+
 export interface AuditEvents {
   action: string;
   actor_type: string;
@@ -172,6 +194,46 @@ export interface Payouts {
   settle_txn_id: string | null;
   status: string;
   transfer_code: string | null;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface PlannerMessages {
+  attempts: Generated<number>;
+  author_id: string | null;
+  content: string;
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  lease_until: Timestamp | null;
+  pot_id: string;
+  reply_to: string | null;
+  role: string;
+  status: string | null;
+}
+
+export interface PlannerRequests {
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  kind: string;
+  pot_id: string;
+  user_id: string;
+}
+
+export interface PlannerSuggestions {
+  cost_estimate_kobo: number | null;
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  message_id: string;
+  place_id: string;
+  position: number;
+  pot_id: string;
+  safety_note: string | null;
+  why: string;
+}
+
+export interface PlannerThreads {
+  pot_id: string;
+  summarised_through: Timestamp;
+  summary: string;
   updated_at: Generated<Timestamp>;
 }
 
@@ -421,6 +483,7 @@ export interface WebhookEvents {
 }
 
 export interface DB {
+  ai_calls: AiCalls;
   audit_events: AuditEvents;
   bank_accounts: BankAccounts;
   fee_schedules: FeeSchedules;
@@ -432,6 +495,10 @@ export interface DB {
   notifications: Notifications;
   payments: Payments;
   payouts: Payouts;
+  planner_messages: PlannerMessages;
+  planner_requests: PlannerRequests;
+  planner_suggestions: PlannerSuggestions;
+  planner_threads: PlannerThreads;
   pot_approval_requests: PotApprovalRequests;
   pot_approval_voters: PotApprovalVoters;
   pot_approval_votes: PotApprovalVotes;
