@@ -40,6 +40,8 @@ export const POT_PERMISSIONS = {
   // Anyone can add a venue to the vote (AI-05), vote, and answer the date poll.
   "plan.add": { roles: ANY },
   "plan.vote": { roles: ANY },
+  // Only pot members can use the AI planner (AI-06).
+  "planner.ask": { roles: ANY },
   "ledger.view": { roles: ANY },
   "contribution.make": { roles: ANY, verifiedEmail: true },
   // Co-organisers have every organiser right except payouts (FR-POT-04).

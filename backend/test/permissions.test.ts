@@ -29,6 +29,7 @@ const EXPECTED: Record<PotAction, string> = {
   "venue.select": "O",
   "plan.add": "OCM",
   "plan.vote": "OCM",
+  "planner.ask": "OCM",
   "ledger.view": "OCM",
   "contribution.make": "OCM",
   "payout.request": "O",

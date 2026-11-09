@@ -9,6 +9,9 @@ import { processPendingWebhooks } from "./payments/webhooks.js";
 import { progressPayouts } from "./payouts/service.js";
 import { reconcileIfDue } from "./reconciliation/service.js";
 import { progressRefunds, startRefunds } from "./refunds/service.js";
+import { HttpPlacesClient } from "./places/client.js";
+import { AnthropicClaudeClient } from "./planner/claude.js";
+import { answerPendingQuestions } from "./planner/service.js";
 import { closeDueRollovers } from "./rollovers/service.js";
 import { deliverEmails, sendDeadlinePassedAlerts, sendDeadlineWarnings, sendPaymentReminders } from "./worker/tasks.js";
 
@@ -25,7 +28,12 @@ const db = createDb(config.DATABASE_URL);
 const sender = new LogEmailSender(log, config.EMAIL_FROM);
 const paystack = config.PAYSTACK_SECRET_KEY ? new HttpPaystackClient(config.PAYSTACK_SECRET_KEY, config.PAYSTACK_BASE_URL) : null;
 
+const places = config.GOOGLE_MAPS_API_KEY ? new HttpPlacesClient(config.GOOGLE_MAPS_API_KEY) : null;
+const claude = config.ANTHROPIC_API_KEY ? new AnthropicClaudeClient(config.ANTHROPIC_API_KEY) : null;
+
 const TICK_MS = 15_000;
+// People wait on the planner, so its questions get their own, quicker loop.
+const PLANNER_TICK_MS = 2_000;
 
 const jobs: [string, () => Promise<unknown>][] = [
   // Money first: confirm payments before anything reads balances.
@@ -48,7 +56,9 @@ const jobs: [string, () => Promise<unknown>][] = [
 
 let stopping = false;
 let timer: NodeJS.Timeout | undefined;
+let plannerTimer: NodeJS.Timeout | undefined;
 let running: Promise<void> = Promise.resolve();
+let plannerRunning: Promise<void> = Promise.resolve();
 
 async function runJobs() {
   for (const [name, job] of jobs) {
@@ -69,13 +79,25 @@ function tick() {
   });
 }
 
+function plannerTick() {
+  plannerRunning = answerPendingQuestions(db, { claude, places, config })
+    .then((result) => {
+      if (result.answered || result.failed) log.info({ job: "planner", result }, "planner answered");
+    })
+    .catch((err: unknown) => log.error({ err, job: "planner" }, "job failed"))
+    .finally(() => {
+      if (!stopping) plannerTimer = setTimeout(plannerTick, PLANNER_TICK_MS);
+    });
+}
+
 /** Lets the current cycle finish, so no job is cut off halfway, then exits. */
 async function shutdown(signal: string) {
   if (stopping) return;
   stopping = true;
   clearTimeout(timer);
+  clearTimeout(plannerTimer);
   log.info({ signal }, "worker shutting down");
-  await running;
+  await Promise.all([running, plannerRunning]);
   await db.destroy();
   log.info("worker stopped");
   log.flush();
@@ -84,5 +106,6 @@ async function shutdown(signal: string) {
 process.on("SIGINT", () => void shutdown("SIGINT"));
 process.on("SIGTERM", () => void shutdown("SIGTERM"));
 
-log.info({ tickMs: TICK_MS }, "worker started");
+log.info({ tickMs: TICK_MS, planner: Boolean(claude && places) }, "worker started");
 tick();
+if (claude && places) plannerTick();

@@ -32,6 +32,15 @@ const configSchema = z
     PAYSTACK_BASE_URL: z.url().default("https://api.paystack.co"),
     // Google Maps Platform (Places API (New), Routes API). Without it, venue search answers 503.
     GOOGLE_MAPS_API_KEY: z.string().min(20).optional(),
+    // Claude, for the AI planner. Without it (or without Google Maps), the planner answers 503.
+    ANTHROPIC_API_KEY: z.string().regex(/^sk-ant-[A-Za-z0-9_-]+$/, "must be an Anthropic API key").optional(),
+    // The larger model plans; the smaller one handles simple jobs such as summaries (AI-09).
+    PLANNER_MODEL: z.string().min(1).default("claude-opus-5-5"),
+    PLANNER_LIGHT_MODEL: z.string().min(1).default("claude-haiku-5-5"),
+    PLANNER_EFFORT: z.enum(["low", "medium", "high", "xhigh", "max"]).default("medium"),
+    // Questions (and regenerates) allowed in any 24 hours, to control cost (AI-06).
+    PLANNER_POT_DAILY_LIMIT: z.coerce.number().int().min(1).max(1000).default(30),
+    PLANNER_USER_DAILY_LIMIT: z.coerce.number().int().min(1).max(1000).default(15),
     RATE_LIMIT_ENABLED: z.stringbool().default(true),
     TRUST_PROXY: z.stringbool().default(false),
     // Sign-in tokens are issued by an OpenID Connect provider (Cognito or similar).

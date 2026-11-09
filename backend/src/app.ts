@@ -13,6 +13,7 @@ import { installAuth } from "./auth/plugin.js";
 import { tokenVerifierFromConfig, type TokenVerifier } from "./auth/tokens.js";
 import { HttpPaystackClient, type PaystackClient } from "./payments/paystack.js";
 import { HttpPlacesClient, type PlacesClient } from "./places/client.js";
+import { AnthropicClaudeClient, type ClaudeClient } from "./planner/claude.js";
 import type { Config } from "./config.js";
 import type { Db } from "./db/index.js";
 import { AppError, type ErrorBody } from "./errors.js";
@@ -25,6 +26,7 @@ import { paymentRoutes } from "./routes/payments.js";
 import { payoutRoutes } from "./routes/payouts.js";
 import { potRoutes } from "./routes/pots.js";
 import { refundRoutes } from "./routes/refunds.js";
+import { plannerRoutes } from "./routes/planner.js";
 import { venueRoutes } from "./routes/venues.js";
 import { waitlistRoutes } from "./routes/waitlist.js";
 import { webhookRoutes } from "./routes/webhooks.js";
@@ -37,6 +39,8 @@ declare module "fastify" {
     paystack: PaystackClient | null;
     /** null when Google Maps isn't configured; venue search then answers 503. */
     places: PlacesClient | null;
+    /** null when no Anthropic key is configured; the planner then answers 503. */
+    claude: ClaudeClient | null;
   }
 }
 
@@ -48,6 +52,7 @@ export interface AppDeps {
   /** Defaults to the real Paystack API when a secret key is configured; tests pass a fake. */
   paystack?: PaystackClient | null;
   places?: PlacesClient | null;
+  claude?: ClaudeClient | null;
 }
 
 // Accept a caller-supplied request id (e.g. from a load balancer) only if it
@@ -65,7 +70,7 @@ function loggerOptions(config: Config) {
   return base;
 }
 
-export async function buildApp({ config, db, tokenVerifier, paystack, places }: AppDeps): Promise<FastifyInstance> {
+export async function buildApp({ config, db, tokenVerifier, paystack, places, claude }: AppDeps): Promise<FastifyInstance> {
   const app = Fastify({
     logger: config.APP_ENV === "test" ? false : loggerOptions(config),
     trustProxy: config.TRUST_PROXY,
@@ -89,6 +94,7 @@ export async function buildApp({ config, db, tokenVerifier, paystack, places }: 
     "places",
     places !== undefined ? places : config.GOOGLE_MAPS_API_KEY ? new HttpPlacesClient(config.GOOGLE_MAPS_API_KEY) : null,
   );
+  app.decorate("claude", claude !== undefined ? claude : config.ANTHROPIC_API_KEY ? new AnthropicClaudeClient(config.ANTHROPIC_API_KEY) : null);
 
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
@@ -160,6 +166,7 @@ export async function buildApp({ config, db, tokenVerifier, paystack, places }: 
   await app.register(payoutRoutes);
   await app.register(refundRoutes);
   await app.register(venueRoutes);
+  await app.register(plannerRoutes);
   await app.register(notificationRoutes);
   await app.register(waitlistRoutes);
   await app.register(adminRoutes);

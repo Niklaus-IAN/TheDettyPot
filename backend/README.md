@@ -35,6 +35,9 @@ in a separate process:
 npm run worker          # alongside `npm run dev`
 ```
 
+With the Anthropic and Google keys set, the worker also answers planner questions,
+on its own two-second loop.
+
 Locally, emails are written to the worker's log instead of being sent
 (`EMAIL_PROVIDER=log`). Every job is safe to run on several workers at once.
 
@@ -94,6 +97,7 @@ src/config.ts       validated environment settings
 src/app.ts          builds the Fastify app (errors, request ids, docs, sign-in)
 src/auth/           token verification, the pot permissions table, authorizePot()
 src/users/          creating and syncing users from sign-in, profiles
+src/planner/        the AI planner: Claude client, cost logging, the tool loop
 src/routes/         HTTP routes, one file per area
 scripts/            developer tools (dev:token)
 src/db/             Kysely client, migration runner, generated table types
@@ -132,6 +136,11 @@ All amounts are integers in **kobo** (₦1 = 100 kobo). Full, interactive refere
 | `PATCH /pots/:id/venue-voting` | Set or clear the venue voting deadline |
 | `GET/POST /pots/:id/dates`, `PUT …/:optionId/answer` | The date poll |
 | `GET /places/photo?name=` | A venue photo, via Google, without exposing the API key |
+| `GET /pots/:id/places/:placeId` | One place's live details (older planner suggestions load these when shown) |
+| `GET /pots/:id/planner` | The pot's conversation with the AI planner, its suggestions, and today's remaining questions |
+| `POST /pots/:id/planner/messages`, `…/regenerate` | Ask the planner (answered in the background: poll while `busy`); answer the latest question again |
+| `POST /pots/:id/planner/suggestions/:suggestionId/add` | Put a planner suggestion to the vote |
+| `GET /admin/ai-usage?days=` | What the planner has cost, by model and purpose, and the costliest pots |
 | `GET /pots/:id/payments/options` | What you owe, the minimum, and share + fee = total for card and bank transfer |
 | `POST /pots/:id/payments` | Start a payment; send the member to `checkoutUrl` |
 | `GET /pots/:id/payments/mine`, `…/:paymentId` | Payment status |
@@ -178,6 +187,37 @@ place in a response carries `attribution: "Google Maps"`, which screens must sho
 along with each photo's author credit. Costs are labelled: the organiser's own
 figure, or an estimate (AI-03). The chosen venue locks once the pot is confirmed,
 in the API and in the database.
+
+## AI planner
+
+A conversation inside each pot (AI-05): a member asks ("beach spot in Lekki under
+₦20k a head"), and the worker answers within seconds while the website polls.
+How an answer is made:
+
+- Claude (`PLANNER_MODEL`, Opus by default) is told only the pot's own settings:
+  vibe, budget per person, group size, date and area (AI-01). Never member names
+  or anything about payments, and long numbers such as card or account numbers
+  are removed from what members type before it's stored or sent (AI-11).
+- It finds places with a `search_places` tool backed by Google, then answers
+  through a `share_suggestions` tool. **Any place it suggests that didn't come
+  back from a search in that answer is sent back to it, then dropped**, so
+  nothing comes from the model's memory.
+- Each suggestion has why it fits, a cost per person that is always labelled an
+  estimate (AI-03), and an optional safety note labelled "AI guidance", with any
+  score or percentage refused (AI-04). Only the place ID is kept (AI-10).
+- Answering again replaces the old answer and its suggestions (AI-07). A member
+  can put any suggestion to the vote; it joins the shortlist as a planner pick.
+- Long conversations: older messages are folded into a short summary by the
+  smaller model (`PLANNER_LIGHT_MODEL`, Haiku by default) (AI-09).
+- Limits (AI-06): one question at a time per pot; `PLANNER_POT_DAILY_LIMIT` and
+  `PLANNER_USER_DAILY_LIMIT` questions in any 24 hours; at most 4 Google searches
+  and 6 round trips with Claude per answer.
+- Every call to Claude is logged in `ai_calls` with its prompt version, model,
+  tokens and cost (AI-11). If Claude declines, a fallback model can step in; its
+  share is priced at its own rate. Deleting an account clears that person's
+  words from the chat and from the logs; the numbers stay.
+
+Without `ANTHROPIC_API_KEY` and `GOOGLE_MAPS_API_KEY`, the planner answers 503.
 
 ## Money
 
@@ -279,7 +319,7 @@ anything. It reads one table, [`src/auth/permissions.ts`](src/auth/permissions.t
 |---|:-:|:-:|:-:|
 | View the pot, its ledger; vote on approvals | ✓ | ✓ | ✓ |
 | Contribute (verified email required) | ✓ | ✓ | ✓ |
-| Add venues, vote on venues and dates | ✓ | ✓ | ✓ |
+| Add venues, vote on venues and dates, ask the AI planner | ✓ | ✓ | ✓ |
 | Edit details, move the stage, manage invites, approve joins, remove members, run the date poll | ✓ | ✓ | |
 | Choose the venue (FR-PLN-05), cancel the pot (refunds everyone), go ahead with less after a missed deadline, change approval settings, nominate co-organisers | ✓ | | |
 | Request a payout (verified email required) | ✓ | | |

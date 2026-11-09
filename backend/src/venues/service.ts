@@ -14,7 +14,7 @@ export type VenueRow = Selectable<Database["pot_venues"]>;
 export const MAX_VENUES_PER_POT = 30;
 export const MAX_DATE_OPTIONS = 14;
 /** The plan can change until the booking is confirmed. */
-const PLANNING_STAGES = ["planning", "collecting", "funded"];
+export const PLANNING_STAGES = ["planning", "collecting", "funded"];
 
 const placesUnavailable = () => new AppError(503, "PLACES_UNAVAILABLE", "Venue search isn't available right now");
 const placesFailed = (err: unknown) =>
@@ -54,6 +54,17 @@ export interface AddVenueInput {
   note?: string;
   costKobo?: number;
   source?: "member" | "planner";
+}
+
+/** Live details for one place, for members of a pot (planner suggestions load these on demand). */
+export async function getPlaceForPot(db: Db, places: PlacesClient | null, user: User, potId: string, placeId: string): Promise<Place> {
+  await authorizePot(db, user, potId, "pot.view");
+  if (!places) throw placesUnavailable();
+  try {
+    return await places.getPlace(placeId);
+  } catch (err) {
+    throw placesFailed(err);
+  }
 }
 
 /** Any member can add a venue to the vote (AI-05). The cost is the organiser's figure, or labelled an estimate (AI-03). */
@@ -97,7 +108,8 @@ export async function addVenue(db: Db, places: PlacesClient | null, actor: Actor
         custom_address: input.custom?.address ?? null,
         note: input.note ?? null,
         cost_kobo: input.costKobo ?? null,
-        cost_source: input.costKobo === undefined ? null : access.role === "organiser" ? "organiser" : "estimate",
+        // A planner figure stays an estimate even when the organiser adds it (AI-03).
+        cost_source: input.costKobo === undefined ? null : access.role === "organiser" && input.source !== "planner" ? "organiser" : "estimate",
         source: input.source ?? "member",
       })
       .returningAll()

@@ -48,6 +48,26 @@ describe("loadConfig: Paystack keys", () => {
   });
 });
 
+describe("loadConfig: AI planner", () => {
+  it("plans with the larger model and summarises with the smaller one by default (AI-09)", () => {
+    const config = loadConfig(valid);
+    expect(config).toMatchObject({ PLANNER_MODEL: "claude-opus-5-5", PLANNER_LIGHT_MODEL: "claude-haiku-5-5", PLANNER_EFFORT: "medium" });
+    expect(config.ANTHROPIC_API_KEY).toBeUndefined();
+  });
+
+  it("only takes an Anthropic key, and never echoes it", () => {
+    expect(loadConfig({ ...valid, ANTHROPIC_API_KEY: "sk-ant-api03-abc_DEF-123" }).ANTHROPIC_API_KEY).toBe("sk-ant-api03-abc_DEF-123");
+    expect(() => loadConfig({ ...valid, ANTHROPIC_API_KEY: "sk_test_supersecret" })).toThrow(/ANTHROPIC_API_KEY/);
+    expect(() => loadConfig({ ...valid, ANTHROPIC_API_KEY: "sk_test_supersecret" })).not.toThrow(/supersecret/);
+  });
+
+  it("keeps the daily limits sensible (AI-06)", () => {
+    expect(loadConfig({ ...valid, PLANNER_USER_DAILY_LIMIT: "5" }).PLANNER_USER_DAILY_LIMIT).toBe(5);
+    expect(() => loadConfig({ ...valid, PLANNER_POT_DAILY_LIMIT: "0" })).toThrow(/PLANNER_POT_DAILY_LIMIT/);
+    expect(() => loadConfig({ ...valid, PLANNER_EFFORT: "extreme" })).toThrow(/PLANNER_EFFORT/);
+  });
+});
+
 describe("loadConfig", () => {
   it("applies defaults", () => {
     const config = loadConfig(valid);
