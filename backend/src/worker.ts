@@ -8,7 +8,8 @@ import { expireStalePayments } from "./payments/service.js";
 import { processPendingWebhooks } from "./payments/webhooks.js";
 import { progressPayouts } from "./payouts/service.js";
 import { reconcileIfDue } from "./reconciliation/service.js";
-import { progressRefunds } from "./refunds/service.js";
+import { progressRefunds, startRefunds } from "./refunds/service.js";
+import { closeDueRollovers } from "./rollovers/service.js";
 import { deliverEmails, sendDeadlinePassedAlerts, sendDeadlineWarnings, sendPaymentReminders } from "./worker/tasks.js";
 
 /**
@@ -38,6 +39,7 @@ const jobs: [string, () => Promise<unknown>][] = [
       ] as [string, () => Promise<unknown>][])
     : []),
   ["expire approvals", () => expireDueApprovals(db)],
+  ["roll-over deadlines", async () => startRefunds(db, paystack, await closeDueRollovers(db))],
   ["deadline passed", () => sendDeadlinePassedAlerts(db)],
   ["deadline warnings", () => sendDeadlineWarnings(db)],
   ["payment reminders", () => sendPaymentReminders(db)],

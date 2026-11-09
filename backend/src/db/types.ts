@@ -310,6 +310,28 @@ export interface Refunds {
   user_id: string;
 }
 
+export interface RolloverChoices {
+  amount_kobo: number;
+  choice: Generated<string>;
+  decided_at: Timestamp | null;
+  decided_by: string | null;
+  hold_txn_id: string;
+  rollover_id: string;
+  user_id: string;
+}
+
+export interface Rollovers {
+  closed_at: Timestamp | null;
+  consent_deadline: Timestamp;
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  from_pot_id: string;
+  id: Generated<string>;
+  leftover_kobo: number;
+  status: Generated<string>;
+  to_pot_id: string;
+}
+
 export interface Settlements {
   created_at: Generated<Timestamp>;
   created_by: string;
@@ -379,6 +401,8 @@ export interface DB {
   reconciliation_findings: ReconciliationFindings;
   reconciliation_runs: ReconciliationRuns;
   refunds: Refunds;
+  rollover_choices: RolloverChoices;
+  rollovers: Rollovers;
   settlements: Settlements;
   users: Users;
   waitlist_signups: WaitlistSignups;

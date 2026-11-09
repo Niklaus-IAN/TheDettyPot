@@ -73,10 +73,29 @@ export async function refundMember(
         .where("r.status", "<>", "failed")
         .as("refunded"),
     ])
-    .where("p.pot_id", "=", input.potId)
     .where("p.user_id", "=", input.userId)
     .where("p.status", "=", "succeeded")
+    // Money a member rolled in from another pot is refunded against the
+    // payment it originally came from, in that other pot.
+    .where((eb) =>
+      eb.or([
+        eb("p.pot_id", "=", input.potId),
+        eb(
+          "p.pot_id",
+          "in",
+          eb
+            .selectFrom("rollovers as ro")
+            .innerJoin("rollover_choices as rc", "rc.rollover_id", "ro.id")
+            .select("ro.from_pot_id")
+            .where("ro.to_pot_id", "=", input.potId)
+            .where("rc.user_id", "=", input.userId)
+            .where("rc.choice", "=", "move"),
+        ),
+      ]),
+    )
     .orderBy("p.paid_at", "desc")
+    // Two payments confirmed in the same millisecond still come out in a fixed order.
+    .orderBy("p.created_at", "desc")
     .execute();
 
   const member = await trx.selectFrom("users").select("full_name").where("id", "=", input.userId).executeTakeFirstOrThrow();

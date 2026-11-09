@@ -132,7 +132,8 @@ All amounts are integers in **kobo** (₦1 = 100 kobo). Full, interactive refere
 | `GET /banks`, `POST /pots/:id/payouts/resolve-account` | Banks, and the real name on an account before paying it |
 | `POST /pots/:id/payouts`, `GET /pots/:id/payouts` | Pay money out (organiser), and every payout for all members to see |
 | `POST /pots/:id/payouts/:payoutId/flag`, `…/cancel` | Any member flags a payout on hold; the organiser withdraws an unsent one |
-| `POST /pots/:id/settle` | Refund what's left after the outing, in proportion (organiser) |
+| `POST /pots/:id/settle` | Settle what's left after the outing (organiser): refund it in proportion, or offer to roll it into a new pot |
+| `GET /rollovers/:id`, `POST /rollovers/:id/choice`, `GET /pots/:id/rollovers` | A contributor's part of a roll-over and their choice; the organiser's view |
 | `GET /refunds/mine`, `POST /refunds/:refundId/account` | Your refunds; where to send one your bank can't receive automatically |
 | `POST /webhooks/paystack` | Paystack's signed notifications (not for clients) |
 | `GET/POST /admin/fees`, `GET /admin/payments`, `GET /admin/webhooks` | Fee schedules; payments held for review; webhooks that ran out of retries |
@@ -241,7 +242,14 @@ record of, a payment we count that Paystack doesn't, amounts that differ, and
 ledger totals that don't match the payments, payouts and refunds behind them.
 Admins review and resolve findings at `/admin/reconciliation`.
 
-Coming next: rolling leftover money into a new outing, with each contributor's consent.
+### Rolling leftover money into a new outing
+
+Instead of refunding, the organiser can offer to move what's left into a new pot
+they organise that is still planning or collecting. Each contributor's part (in
+proportion to what they paid) is set aside at once, and each person chooses:
+**move** it (they join the new pot and it counts as paid there) or **refund** it.
+Anyone who hasn't chosen within 72 hours is refunded. Money that moved can still
+be refunded later from the new pot, against the payment it originally came from.
 
 ## Who can do what
 

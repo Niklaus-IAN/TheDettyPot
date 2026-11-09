@@ -305,7 +305,7 @@ async function postContribution(trx: Parameters<typeof post>[0], payment: Paymen
 }
 
 /** Moves a collecting pot to funded the moment confirmed money reaches the target. */
-async function markFundedIfTargetMet(trx: Db, potId: string) {
+export async function markFundedIfTargetMet(trx: Db, potId: string) {
   const pot = await lockPot(trx, potId);
   if (pot.stage !== "collecting") return;
   const raised = totalRaised((await paidByMember(trx, [potId])).get(potId));
