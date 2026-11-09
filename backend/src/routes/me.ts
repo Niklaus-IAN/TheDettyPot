@@ -1,6 +1,7 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { requireUser } from "../auth/plugin.js";
+import { deleteMyAccount, exportMyData } from "../users/account.js";
 import { updateProfile, type User } from "../users/service.js";
 
 const profile = z.object({
@@ -58,5 +59,36 @@ export const meRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (req) => toProfile(await updateProfile(app.db, requireUser(req).id, req.body)),
+  );
+
+  app.get(
+    "/me/export",
+    {
+      preHandler: app.authenticate,
+      config: { rateLimit: { max: 5, timeWindow: "1 hour" } },
+      schema: { tags: ["account"], summary: "Everything DettyPot holds about you, as JSON", security: [{ bearerAuth: [] }] },
+    },
+    async (req, reply) => {
+      reply.header("content-disposition", 'attachment; filename="dettypot-my-data.json"');
+      return exportMyData(app.db, requireUser(req));
+    },
+  );
+
+  app.post(
+    "/me/delete",
+    {
+      preHandler: app.authenticate,
+      schema: {
+        tags: ["account"],
+        summary: "Delete your account: your details are removed; money records the law requires are kept anonymously",
+        security: [{ bearerAuth: [] }],
+        body: z.strictObject({ confirm: z.literal("DELETE", { message: 'Send {"confirm": "DELETE"} to confirm' }) }),
+        response: { 200: z.object({ ok: z.literal(true) }) },
+      },
+    },
+    async (req) => {
+      await deleteMyAccount(app.db, { user: requireUser(req), requestId: req.id });
+      return { ok: true as const };
+    },
   );
 };

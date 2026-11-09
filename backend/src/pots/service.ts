@@ -78,7 +78,11 @@ export interface PotView {
 
 export interface PotDetailView extends PotView {
   members: MemberSummary[];
+  myReminderFrequency: ReminderFrequency;
 }
+
+export const REMINDER_FREQUENCIES = ["daily", "every_3_days", "weekly", "off"] as const;
+export type ReminderFrequency = (typeof REMINDER_FREQUENCIES)[number];
 
 /** Today's date (YYYY-MM-DD) in the pot's timezone. */
 const todayIn = (timeZone: string) => new Intl.DateTimeFormat("en-CA", { timeZone }).format(new Date());
@@ -227,6 +231,9 @@ export async function getPot(db: Db, user: User, potId: string): Promise<PotDeta
     inProgressKobo: (await inProgressByPot(db, [potId])).get(potId) ?? 0,
     myPaidKobo: myPaid,
     myOwedKobo: owed(pot, myPaid),
+    myReminderFrequency: (
+      await db.selectFrom("pot_members").select("reminder_frequency").where("id", "=", access.membershipId).executeTakeFirstOrThrow()
+    ).reminder_frequency as ReminderFrequency,
     members: memberRows.map((m) => ({
       userId: m.user_id,
       fullName: m.full_name,
@@ -454,4 +461,11 @@ export async function cancelPot(db: Db, actor: Actor, potId: string, reason?: st
     });
     return refundIds;
   });
+}
+
+/** FR-NOT-03: each member chooses how often they're reminded to pay, per pot. */
+export async function setReminderFrequency(db: Db, user: User, potId: string, frequency: ReminderFrequency): Promise<void> {
+  // A personal setting, so it's allowed even while support has the pot paused.
+  const access = await authorizePot(db, user, potId, "pot.view");
+  await db.updateTable("pot_members").set({ reminder_frequency: frequency }).where("id", "=", access.membershipId).execute();
 }

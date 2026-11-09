@@ -108,11 +108,13 @@ All amounts are integers in **kobo** (₦1 = 100 kobo). Full, interactive refere
 | Endpoint | What it does |
 |---|---|
 | `GET /me`, `PATCH /me` | Your profile (created on first sign-in) |
+| `GET /me/export`, `POST /me/delete` | Download everything held about you; delete your account (personal details removed, money records kept anonymously) |
 | `POST /pots` | Create a pot; you become its organiser |
 | `GET /pots` | Your dashboard: each pot's stage, your share, what you've paid and still owe |
 | `GET /pots/:id` | The pot page: details, members, who has paid what |
 | `PATCH /pots/:id` | Edit details, until the pot is funded. Budget changes notify every member |
 | `PATCH /pots/:id/settings` | Join approval and payout approval (organiser only) |
+| `PATCH /pots/:id/me` | Your own setting in a pot: how often you're reminded to pay |
 | `POST /pots/:id/stage` | Move to the next stage, once that stage's conditions are met |
 | `POST /pots/:id/cancel` | Cancel (organiser only) |
 | `POST /pots/:id/invites`, `GET`, `…/:inviteId/revoke` | Invite links: optional use limit and expiry; the token is shown once |
