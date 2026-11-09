@@ -1,7 +1,30 @@
 import { describe, expect, it } from "vitest";
 import { loadConfig } from "../src/config.js";
 
-const valid = { DATABASE_URL: "postgres://u:p@localhost:5432/db" };
+const valid = {
+  DATABASE_URL: "postgres://u:p@localhost:5432/db",
+  AUTH_ISSUER: "https://cognito-idp.eu-west-1.amazonaws.com/eu-west-1_abc",
+  AUTH_AUDIENCE: "client-id",
+};
+
+describe("loadConfig: sign-in", () => {
+  it("requires an issuer and audience", () => {
+    expect(() => loadConfig({ DATABASE_URL: valid.DATABASE_URL })).toThrow(/AUTH_ISSUER[\s\S]*AUTH_AUDIENCE/);
+  });
+
+  it("requires the issuer to be a URL", () => {
+    expect(() => loadConfig({ ...valid, AUTH_ISSUER: "not a url" })).toThrow(/AUTH_ISSUER/);
+  });
+
+  it("allows local signing keys only on a laptop or in tests", () => {
+    for (const APP_ENV of ["local", "test"]) {
+      expect(loadConfig({ ...valid, APP_ENV, AUTH_DEV_JWKS_FILE: "keys.json" }).AUTH_DEV_JWKS_FILE).toBe("keys.json");
+    }
+    for (const APP_ENV of ["dev", "staging", "prod"]) {
+      expect(() => loadConfig({ ...valid, APP_ENV, AUTH_DEV_JWKS_FILE: "keys.json" })).toThrow(/AUTH_DEV_JWKS_FILE/);
+    }
+  });
+});
 
 describe("loadConfig", () => {
   it("applies defaults", () => {
