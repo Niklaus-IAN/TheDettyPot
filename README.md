@@ -28,7 +28,10 @@ Early build. Done so far:
 - Sign-in with any OpenID Connect provider, accounts created on first sign-in,
   profiles, and a single permissions table for what each role can do in a pot.
 
-Next: pots and invites, then payments.
+- Pots API: create, edit, dashboard, pot page with who has paid, settings, and
+  the stage lifecycle (planning → collecting → funded → confirmed → completed).
+
+Next: invites and joining, then notifications and admin, then payments.
 
 ## Getting started
 

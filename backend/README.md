@@ -73,6 +73,27 @@ migrations/         forward-only .sql files, run in filename order
 test/               Vitest suites (real Postgres, no mocks for the database)
 ```
 
+## API
+
+All amounts are integers in **kobo** (₦1 = 100 kobo). Full, interactive reference at `/docs`.
+
+| Endpoint | What it does |
+|---|---|
+| `GET /me`, `PATCH /me` | Your profile (created on first sign-in) |
+| `POST /pots` | Create a pot; you become its organiser |
+| `GET /pots` | Your dashboard: each pot's stage, your share, what you've paid and still owe |
+| `GET /pots/:id` | The pot page: details, members, who has paid what |
+| `PATCH /pots/:id` | Edit details, until the pot is funded. Budget changes notify every member |
+| `PATCH /pots/:id/settings` | Join approval and payout approval (organiser only) |
+| `POST /pots/:id/stage` | Move to the next stage, once that stage's conditions are met |
+| `POST /pots/:id/cancel` | Cancel (organiser only) |
+
+Stage conditions: collecting needs a future funding deadline; funded needs the
+target met, or, after the deadline, the organiser choosing to go ahead with what
+was raised; completed needs the outing date to have arrived. Payout approval can
+be switched on at any time but off only while planning. A pot holding money
+can't be cancelled until automatic refunds arrive with payments.
+
 ## Who can do what
 
 Every pot route calls `authorizePot(db, user, potId, action)` before doing
@@ -83,7 +104,7 @@ anything. It reads one table, [`src/auth/permissions.ts`](src/auth/permissions.t
 | View the pot, its ledger; vote on approvals | ✓ | ✓ | ✓ |
 | Contribute (verified email required) | ✓ | ✓ | ✓ |
 | Edit details, move the stage, manage invites, approve joins, remove members, select the venue | ✓ | ✓ | |
-| Cancel the pot (refunds everyone), change approval settings, nominate co-organisers | ✓ | | |
+| Cancel the pot (refunds everyone), go ahead with less after a missed deadline, change approval settings, nominate co-organisers | ✓ | | |
 | Request a payout (verified email required) | ✓ | | |
 
 Co-organisers can only remove plain members; nobody can remove the organiser.
