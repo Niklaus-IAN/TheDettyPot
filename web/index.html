@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>DettyPot · Plan the outing. Pool the money. Nobody's owing.</title>
+    <meta
+      name="description"
+      content="DettyPot is where your squad plans the link-up, everyone chips in their share, and the spot gets paid, with every naira out in the open. Join the waitlist."
+    />
+    <meta name="theme-color" content="#08070c" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#fff7f0" media="(prefers-color-scheme: light)" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="DettyPot · Plan the outing. Pool the money." />
+    <meta property="og:description" content="Your squad plans, everyone chips in, the spot gets paid. No more 'abeg who never pay?'. Join the waitlist." />
+    <meta name="twitter:card" content="summary" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Outfit:wght@400;500;600;700&display=swap"
+    />
+    <script>
+      // Apply a saved light/dark choice before the page paints, so it never flashes.
+      try {
+        const t = localStorage.getItem("dp-theme");
+        if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+      } catch {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
