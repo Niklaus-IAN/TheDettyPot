@@ -79,6 +79,7 @@ export interface NotificationDeliveries {
   created_at: Generated<Timestamp>;
   id: Generated<string>;
   last_error: string | null;
+  next_attempt_at: Generated<Timestamp>;
   notification_id: string;
   provider_message_id: string | null;
   sent_at: Timestamp | null;
@@ -92,8 +93,9 @@ export interface Notifications {
   payload: Generated<Json>;
   pot_id: string | null;
   read_at: Timestamp | null;
+  recipient_email: string | null;
   type: string;
-  user_id: string;
+  user_id: string | null;
 }
 
 export interface PotApprovalRequests {
@@ -139,6 +141,7 @@ export interface PotMembers {
   id: Generated<string>;
   invite_id: string | null;
   joined_at: Timestamp | null;
+  last_reminded_at: Timestamp | null;
   pot_id: string;
   reminder_frequency: Generated<string>;
   role: Generated<string>;
@@ -155,7 +158,12 @@ export interface Pots {
   created_at: Generated<Timestamp>;
   created_by: string;
   currency: Generated<string>;
+  deadline_passed_sent_at: Timestamp | null;
+  deadline_warning_sent_at: Timestamp | null;
   description: string | null;
+  frozen_at: Timestamp | null;
+  frozen_by: string | null;
+  frozen_reason: string | null;
   funding_deadline: Timestamp | null;
   headcount: number;
   id: Generated<string>;
@@ -188,6 +196,15 @@ export interface Users {
   updated_at: Generated<Timestamp>;
 }
 
+export interface WaitlistSignups {
+  created_at: Generated<Timestamp>;
+  email: string | null;
+  id: Generated<string>;
+  phone: string | null;
+  referrer: string | null;
+  source: string | null;
+}
+
 export interface DB {
   audit_events: AuditEvents;
   ledger_account_balances: LedgerAccountBalances;
@@ -202,4 +219,5 @@ export interface DB {
   pot_members: PotMembers;
   pots: Pots;
   users: Users;
+  waitlist_signups: WaitlistSignups;
 }

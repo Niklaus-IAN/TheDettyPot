@@ -34,7 +34,12 @@ Early build. Done so far:
 - Invites and membership: invite links with a public preview, joining with
   optional approval, leaving and removal, and co-organisers chosen by member vote.
 
-Next: notifications and admin, then payments.
+- Notifications: in-app and email for every event, payment reminders at each
+  member's chosen frequency, deadline alerts, email invites, retries.
+- Support tools: search, a pot's full record and audit trail, freezing a pot.
+- A working waitlist, and rate limits on public and sensitive endpoints.
+
+Next: payments (Paystack), then real venues and the AI planner.
 
 ## Getting started
 

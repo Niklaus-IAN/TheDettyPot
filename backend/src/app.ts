@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import Fastify, { type FastifyError, type FastifyInstance } from "fastify";
+import rateLimit from "@fastify/rate-limit";
 import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
 import {
@@ -15,8 +16,11 @@ import type { Db } from "./db/index.js";
 import { AppError, type ErrorBody } from "./errors.js";
 import { healthRoutes } from "./routes/health.js";
 import { meRoutes } from "./routes/me.js";
+import { adminRoutes } from "./routes/admin.js";
 import { memberRoutes } from "./routes/members.js";
+import { notificationRoutes } from "./routes/notifications.js";
 import { potRoutes } from "./routes/pots.js";
+import { waitlistRoutes } from "./routes/waitlist.js";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -50,6 +54,7 @@ function loggerOptions(config: Config) {
 export async function buildApp({ config, db, tokenVerifier }: AppDeps): Promise<FastifyInstance> {
   const app = Fastify({
     logger: config.APP_ENV === "test" ? false : loggerOptions(config),
+    trustProxy: config.TRUST_PROXY,
     genReqId: (req) => {
       const incoming = req.headers["x-request-id"];
       return typeof incoming === "string" && SAFE_REQUEST_ID.test(incoming) ? incoming : randomUUID();
@@ -107,12 +112,27 @@ export async function buildApp({ config, db, tokenVerifier }: AppDeps): Promise<
     await app.register(swaggerUi, { routePrefix: "/docs" });
   }
 
+  // Per-IP limits (NFR-03): a generous default, tighter on public and
+  // sensitive routes. The store is per process; with several instances in AWS
+  // the load balancer's limits sit in front of this.
+  if (config.RATE_LIMIT_ENABLED) {
+    await app.register(rateLimit, {
+      max: 300,
+      timeWindow: "1 minute",
+      errorResponseBuilder: (_req, ctx) =>
+        new AppError(429, "RATE_LIMITED", `Too many requests. Try again in ${ctx.after}.`),
+    });
+  }
+
   installAuth(app, tokenVerifier ?? tokenVerifierFromConfig(config));
 
   await app.register(healthRoutes);
   await app.register(meRoutes);
   await app.register(potRoutes);
   await app.register(memberRoutes);
+  await app.register(notificationRoutes);
+  await app.register(waitlistRoutes);
+  await app.register(adminRoutes);
 
   return app;
 }

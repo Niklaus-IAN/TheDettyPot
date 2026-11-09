@@ -16,7 +16,7 @@ export function apiFor(getApp: () => TestApp) {
   const app = () => getApp().app;
   const db = () => getApp().db;
 
-  async function signIn(opts: { emailVerified?: boolean; email?: string; name?: string } = {}): Promise<Person> {
+  async function signIn(opts: { subject?: string; emailVerified?: boolean; email?: string; name?: string } = {}): Promise<Person> {
     const token = await signToken(opts);
     const me = await app().inject({ method: "GET", url: "/me", headers: bearer(token) });
     expect(me.statusCode).toBe(200);

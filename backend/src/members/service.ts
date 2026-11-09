@@ -5,7 +5,7 @@ import { authorizePot } from "../auth/pot-access.js";
 import { canRemoveMember, type PotRole } from "../auth/permissions.js";
 import type { Database, Db } from "../db/index.js";
 import { AppError, conflict, forbidden, notFound } from "../errors.js";
-import { notifyPotMembers, notifyUser } from "../notifications/service.js";
+import { notifyEmailAddress, notifyPotMembers, notifyUser } from "../notifications/service.js";
 import { paidByMember } from "../pots/money.js";
 import { CLOSED, JOINABLE, lockPot, type Actor, type PotRow, type Stage } from "../pots/service.js";
 import type { User } from "../users/service.js";
@@ -13,6 +13,9 @@ import type { User } from "../users/service.js";
 export type InviteRow = Selectable<Database["pot_invites"]>;
 
 export const INVITE_DEFAULT_TTL_DAYS = 30;
+export const EMAIL_INVITE_TTL_DAYS = 14;
+/** Guards against a pot being used to spam people. */
+export const EMAIL_INVITES_PER_POT_PER_DAY = 50;
 const ORGANISER_ROLES = ["organiser", "co_organiser"] as const;
 
 /** 16 URL-safe characters, 96 bits of randomness: short enough to share, impossible to guess. */
@@ -37,6 +40,9 @@ async function activeMemberCount(db: Db, potId: string): Promise<number> {
 }
 
 function assertJoinable(pot: PotRow) {
+  if (pot.frozen_at) {
+    throw new AppError(423, "POT_FROZEN", "This pot is paused while DettyPot support takes a look");
+  }
   if (!JOINABLE.includes(pot.stage as Stage)) {
     throw conflict("POT_NOT_JOINABLE", `New members can't join a pot that is ${pot.stage}`);
   }
@@ -116,6 +122,78 @@ export async function createInviteLink(
   });
 }
 
+/**
+ * Invites one person by email, whether or not they have an account (FR-INV-04).
+ * The link is single-use and only works for someone signed in with that
+ * verified address, so a forwarded email can't be used by anyone else.
+ */
+export async function createEmailInvite(
+  db: Db,
+  actor: Actor,
+  potId: string,
+  email: string,
+  webBaseUrl: string,
+): Promise<InviteRow> {
+  return db.transaction().execute(async (trx) => {
+    await authorizePot(trx, actor.user, potId, "invite.manage");
+    const pot = await lockPot(trx, potId);
+    assertJoinable(pot);
+
+    const alreadyIn = await trx
+      .selectFrom("pot_members as m")
+      .innerJoin("users as u", "u.id", "m.user_id")
+      .select("m.status")
+      .where("m.pot_id", "=", potId)
+      .where("u.email", "=", email)
+      .where("m.status", "in", ["active", "pending"])
+      .executeTakeFirst();
+    if (alreadyIn) throw conflict("ALREADY_MEMBER", "This person is already in the pot or waiting to join");
+
+    const { n } = await trx
+      .selectFrom("pot_invites")
+      .select((eb) => eb.fn.countAll<number>().as("n"))
+      .where("pot_id", "=", potId)
+      .where("kind", "=", "email")
+      .where("created_at", ">", new Date(Date.now() - 24 * 3600 * 1000))
+      .executeTakeFirstOrThrow();
+    if (Number(n) >= EMAIL_INVITES_PER_POT_PER_DAY) {
+      throw new AppError(429, "TOO_MANY_INVITES", "This pot has sent the most email invites allowed today. Try again tomorrow.");
+    }
+
+    const token = newInviteToken();
+    const invite = await trx
+      .insertInto("pot_invites")
+      .values({
+        pot_id: potId,
+        created_by: actor.user.id,
+        kind: "email",
+        token_hash: hashToken(token),
+        invitee_email: email,
+        max_uses: 1,
+        expires_at: new Date(Date.now() + EMAIL_INVITE_TTL_DAYS * 24 * 3600 * 1000),
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+    // The token travels in the email. It is useless without signing in as the
+    // invited, verified address, so keeping it in the notification is safe.
+    await notifyEmailAddress(trx, email, potId, "pot_invite", {
+      inviterName: actor.user.full_name,
+      potName: pot.name,
+      shareKobo: pot.share_kobo,
+      url: new URL(`/join/${token}`, webBaseUrl).toString(),
+    });
+    await recordAudit(trx, {
+      actorUserId: actor.user.id,
+      action: "invite.emailed",
+      potId,
+      subjectType: "invite",
+      subjectId: invite.id,
+      requestId: actor.requestId,
+    });
+    return invite;
+  });
+}
+
 export interface InviteSummary {
   invite: InviteRow;
   createdByName: string | null;
@@ -192,7 +270,7 @@ export async function previewInvite(db: Db, token: string): Promise<InvitePrevie
     pot,
     organiserName: organiser?.full_name ?? null,
     memberCount,
-    joinable: JOINABLE.includes(pot.stage as Stage) && memberCount < pot.headcount,
+    joinable: !pot.frozen_at && JOINABLE.includes(pot.stage as Stage) && memberCount < pot.headcount,
   };
 }
 
@@ -211,8 +289,22 @@ export async function joinWithInvite(db: Db, actor: Actor, token: string): Promi
       .where("token_hash", "=", hashToken(token))
       .forUpdate()
       .executeTakeFirst();
-    if (!invite || !isUsable(invite)) throw inviteInvalid();
+    if (!invite) throw inviteInvalid();
 
+    // People already in the pot are sent to it, even if the link has since
+    // been used up or expired: they often tap an old invite again.
+    const existing = await trx
+      .selectFrom("pot_members")
+      .selectAll()
+      .where("pot_id", "=", invite.pot_id)
+      .where("user_id", "=", actor.user.id)
+      .forUpdate()
+      .executeTakeFirst();
+    if (existing?.status === "active" || existing?.status === "pending") {
+      return { potId: invite.pot_id, status: existing.status, alreadyMember: true };
+    }
+
+    if (!isUsable(invite)) throw inviteInvalid();
     const pot = await lockPot(trx, invite.pot_id);
     assertJoinable(pot);
 
@@ -223,16 +315,6 @@ export async function joinWithInvite(db: Db, actor: Actor, token: string): Promi
       }
     }
 
-    const existing = await trx
-      .selectFrom("pot_members")
-      .selectAll()
-      .where("pot_id", "=", pot.id)
-      .where("user_id", "=", actor.user.id)
-      .forUpdate()
-      .executeTakeFirst();
-    if (existing?.status === "active" || existing?.status === "pending") {
-      return { potId: pot.id, status: existing.status, alreadyMember: true };
-    }
     if (existing?.status === "removed" && invite.kind === "link") {
       throw new AppError(
         403,
@@ -342,8 +424,9 @@ export async function decideJoinRequest(
         .set({ status: "active", joined_at: new Date(), status_changed_by: actor.user.id })
         .where("id", "=", request.id)
         .execute();
+      const joiner = await trx.selectFrom("users").select("full_name").where("id", "=", userId).executeTakeFirstOrThrow();
       await notifyUser(trx, userId, potId, "join_approved", { potName: pot.name });
-      await notifyPotMembers(trx, potId, "member_joined", { userId }, { exceptUserId: userId });
+      await notifyPotMembers(trx, potId, "member_joined", { userId, name: joiner.full_name }, { exceptUserId: userId });
     } else {
       await trx
         .updateTable("pot_members")
@@ -422,7 +505,7 @@ export async function leavePot(db: Db, actor: Actor, potId: string): Promise<voi
       .where("id", "=", access.membershipId)
       .execute();
     await cancelOpenRequestsAbout(trx, potId, actor.user.id);
-    await notifyPotMembers(trx, potId, "member_left", { userId: actor.user.id }, { roles: ORGANISER_ROLES });
+    await notifyPotMembers(trx, potId, "member_left", { userId: actor.user.id, name: actor.user.full_name }, { roles: ORGANISER_ROLES });
     await recordAudit(trx, { actorUserId: actor.user.id, action: "member.left", potId, requestId: actor.requestId });
   });
 }

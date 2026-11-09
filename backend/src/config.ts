@@ -21,6 +21,14 @@ const configSchema = z
     ENABLE_DOCS: z.stringbool().default(false),
     // The website's address, used to build links such as invite links.
     WEB_BASE_URL: z.url().default("http://localhost:5173"),
+    // How email goes out. "log" writes emails to the log instead of sending
+    // them; Amazon SES is added with the AWS deployment.
+    EMAIL_PROVIDER: z.enum(["log"]).default("log"),
+    EMAIL_FROM: z.string().min(3).default("DettyPot <no-reply@dettypot.local>"),
+    // Per-IP request limits (NFR-03). Behind a load balancer, set TRUST_PROXY so
+    // limits apply to the caller's address rather than the balancer's.
+    RATE_LIMIT_ENABLED: z.stringbool().default(true),
+    TRUST_PROXY: z.stringbool().default(false),
     // Sign-in tokens are issued by an OpenID Connect provider (Cognito or similar).
     AUTH_ISSUER: z.url(),
     AUTH_AUDIENCE: z.string().min(1),

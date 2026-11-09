@@ -17,6 +17,13 @@ the next, so what was tested in staging is exactly what reaches production.
 | API docs (`/docs`) | On | On | On | **Off (the app refuses to start with them on)** |
 | Who can access | You | Team | Team, invited testers | Everyone |
 
+Each environment runs two processes from the same build: the **API** and the
+**worker** (reminders, deadline alerts, email delivery). In AWS both run as
+separate services; the worker can be scaled to more than one copy safely.
+Emails are only really sent where `EMAIL_PROVIDER` points at Amazon SES; locally
+they are written to the log. Behind the load balancer, `TRUST_PROXY=true` so
+rate limits apply per caller.
+
 Each deployed environment has its own AWS resources, its own secrets in AWS
 Secrets Manager and its own database. Nothing is shared between them, and
 production data is never copied into dev or staging (Nigeria Data Protection
@@ -68,3 +75,5 @@ These come with the AWS infrastructure step and need repository-admin access:
 - [ ] Secrets in AWS Secrets Manager per environment; rotate any keys carried
       over from the previous version of the app.
 - [ ] Separate database roles for migrations and for the running app.
+- [ ] Amazon SES: verified sending domain, `EMAIL_PROVIDER=ses`, bounce handling.
+- [ ] Worker service running `npm run start:worker` next to the API.

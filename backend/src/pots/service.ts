@@ -273,7 +273,12 @@ export async function updatePot(db: Db, actor: Actor, potId: string, changes: Po
         ...(has("area") && { area: changes.area }),
         ...(has("outingDate") && { outing_date: changes.outingDate }),
         ...(has("outingTime") && { outing_time: changes.outingTime }),
-        ...(has("fundingDeadline") && { funding_deadline: changes.fundingDeadline }),
+        // A new deadline gets its own warning and missed-deadline alert.
+        ...(has("fundingDeadline") && {
+          funding_deadline: changes.fundingDeadline,
+          deadline_warning_sent_at: null,
+          deadline_passed_sent_at: null,
+        }),
         ...(has("budgetKobo") && { budget_kobo: changes.budgetKobo }),
         ...(has("headcount") && { headcount: changes.headcount }),
       })
