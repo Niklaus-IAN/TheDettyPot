@@ -50,7 +50,10 @@ Early build. Done so far:
   proportion and never including the fee, with a path for when the bank needs
   the member's account.
 
-Next: roll-over into a new outing, reconciliation; then real venues and the AI planner.
+- Daily reconciliation with Paystack that fixes lost webhooks and flags
+  anything else for support.
+
+Next: roll-over into a new outing; then real venues and the AI planner.
 
 ## Getting started
 

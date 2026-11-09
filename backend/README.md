@@ -138,6 +138,7 @@ All amounts are integers in **kobo** (₦1 = 100 kobo). Full, interactive refere
 | `GET/POST /admin/fees`, `GET /admin/payments`, `GET /admin/webhooks` | Fee schedules; payments held for review; webhooks that ran out of retries |
 | `GET /admin/payouts`, `POST /admin/payouts/:id/release\|cancel\|retry` | Flagged and stuck payouts, and support's decision on them |
 | `GET /admin/refunds` | Refunds that failed or are waiting on a member's account details |
+| `GET /admin/reconciliation`, `POST …/run`, `POST …/findings/:id/resolve` | Daily checks against Paystack and what they found |
 | `POST /waitlist` | The website's waitlist form (no sign-in) |
 | `GET /admin/pots`, `/admin/pots/:id`, `/admin/users`, `/admin/audit` | Support tools: search, a pot's full record, the audit log (admins only) |
 | `POST /admin/pots/:id/freeze`, `…/unfreeze` | Pause a pot: read-only for its members until lifted |
@@ -230,8 +231,17 @@ The rules (MON-01 to MON-18 in the BRD) and where they live:
 - When the bank needs the member's account (common for bank transfers), they're
   asked, the account is checked with the bank, and Paystack retries.
 
-Coming next: rolling leftover money into a new outing (with each contributor's
-consent), and a daily reconciliation against Paystack.
+### Reconciliation
+
+Once a day (after 02:00 Lagos time) the worker compares the last 48 hours of
+Paystack's charges and transfers with DettyPot's records. It fixes what it
+safely can (a payment whose webhook never came, a transfer result we missed) and
+records the rest as findings, emailing admins: money at Paystack we have no
+record of, a payment we count that Paystack doesn't, amounts that differ, and
+ledger totals that don't match the payments, payouts and refunds behind them.
+Admins review and resolve findings at `/admin/reconciliation`.
+
+Coming next: rolling leftover money into a new outing, with each contributor's consent.
 
 ## Who can do what
 

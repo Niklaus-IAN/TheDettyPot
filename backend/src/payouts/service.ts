@@ -11,7 +11,7 @@ import { notifyPotMembers, notifyUser } from "../notifications/service.js";
 import { paidByMember, totalRaised } from "../pots/money.js";
 import { lockPot, type Actor } from "../pots/service.js";
 import { newReference } from "../payments/service.js";
-import { PaystackError, type Bank, type PaystackClient, type TransferResult } from "../payments/paystack.js";
+import { PaystackError, TRANSFER_FAILED_STATUSES, type Bank, type PaystackClient, type TransferResult } from "../payments/paystack.js";
 
 export type PayoutRow = Selectable<Database["payouts"]>;
 
@@ -419,7 +419,7 @@ async function applyTransferResult(
     await recordAudit(db, { actorUserId: null, action: "payout.needs_attention", subjectType: "payout", subjectId: payoutId, metadata: { reason: "otp" } });
     return "needs_attention";
   }
-  if (result.status === "success" || result.status === "failed" || result.status === "reversed") {
+  if (result.status === "success" || result.status === "reversed" || TRANSFER_FAILED_STATUSES.includes(result.status)) {
     return finishPayout(db, paystack, payout.reference, source);
   }
   if (result.transferCode) {
@@ -488,8 +488,9 @@ export async function finishPayout(db: Db, paystack: PaystackClient, reference: 
       return "succeeded";
     }
 
-    if (verified.status === "failed" && ["sending", "needs_attention"].includes(payout.status)) {
-      await release(trx, payout, "failed", "The bank transfer failed");
+    // Paystack has several ways of saying a transfer didn't happen.
+    if (TRANSFER_FAILED_STATUSES.includes(verified.status) && ["sending", "needs_attention"].includes(payout.status)) {
+      await release(trx, payout, "failed", `The bank transfer ${verified.status === "failed" ? "failed" : `was ${verified.status}`}`);
       await notifyPotMembers(trx, payout.pot_id, "payout_failed", { amountKobo: payout.amount_kobo, accountName: account.account_name }, { roles: ORGANISERS });
       return "failed";
     }

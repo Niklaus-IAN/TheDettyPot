@@ -88,7 +88,30 @@ export interface PaystackClient {
   retryRefundWithAccount(id: number, account: { accountNumber: string; bankId: number }): Promise<RefundResult>;
   /** Refunds created since a moment, with the note we attached; used to find out whether an unanswered request went through. */
   listRefundsSince(from: Date): Promise<(RefundResult & { merchantNote: string | null })[]>;
+  /** Every transaction in a window (all pages), for reconciliation. */
+  listTransactions(from: Date, to: Date): Promise<ListedTransaction[]>;
+  /** Every transfer in a window (all pages), for reconciliation. */
+  listTransfers(from: Date, to: Date): Promise<ListedTransfer[]>;
 }
+
+export interface ListedTransaction {
+  reference: string;
+  status: string;
+  amountKobo: number;
+  currency: string;
+}
+
+export interface ListedTransfer {
+  reference: string;
+  status: string;
+  amountKobo: number;
+}
+
+/**
+ * Every state a transfer can be in, per Paystack's API specification. Only
+ * success, reversed and the failures below are final.
+ */
+export const TRANSFER_FAILED_STATUSES = ["failed", "abandoned", "blocked", "rejected"];
 
 export class PaystackError extends Error {
   constructor(
@@ -225,6 +248,34 @@ export class HttpPaystackClient implements PaystackClient {
 
   async fetchRefund(id: number): Promise<RefundResult> {
     return toRefund(await this.call<RefundData>("GET", `/refund/${id}`));
+  }
+
+  /** Walks every page of a list endpoint. */
+  private async all<T>(path: string, from: Date, to: Date): Promise<T[]> {
+    const out: T[] = [];
+    for (let page = 1; page <= 200; page++) {
+      const res = await fetch(
+        new URL(`${path}?perPage=100&page=${page}&from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`, this.baseUrl),
+        { headers: { authorization: `Bearer ${this.secretKey}` }, signal: AbortSignal.timeout(TIMEOUT_MS) },
+      ).catch((err) => {
+        throw new PaystackError(`Paystack unreachable: ${(err as Error).message}`, null);
+      });
+      const json = (await res.json().catch(() => null)) as { status?: boolean; message?: string; data?: T[]; meta?: { pageCount?: number } } | null;
+      if (!res.ok || !json?.status) throw new PaystackError(json?.message ?? `Paystack returned ${res.status}`, res.status);
+      out.push(...(json.data ?? []));
+      if (!json.meta?.pageCount || page >= json.meta.pageCount) break;
+    }
+    return out;
+  }
+
+  async listTransactions(from: Date, to: Date): Promise<ListedTransaction[]> {
+    const rows = await this.all<{ reference: string; status: string; amount: number | string; currency: string }>("/transaction", from, to);
+    return rows.map((r) => ({ reference: r.reference, status: r.status, amountKobo: Number(r.amount), currency: r.currency }));
+  }
+
+  async listTransfers(from: Date, to: Date): Promise<ListedTransfer[]> {
+    const rows = await this.all<{ reference: string; status: string; amount: number | string }>("/transfer", from, to);
+    return rows.map((r) => ({ reference: r.reference, status: r.status, amountKobo: Number(r.amount) }));
   }
 
   async listRefundsSince(from: Date): Promise<(RefundResult & { merchantNote: string | null })[]> {

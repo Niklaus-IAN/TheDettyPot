@@ -15,7 +15,7 @@ import { PaystackError } from "../src/payments/paystack.js";
 interface FakeTransaction {
   id: number;
   input: InitializeInput;
-  status: "pending" | "success" | "failed" | "abandoned";
+  status: "pending" | "success" | "failed" | "abandoned" | "reversed";
   amountKobo: number;
   currency: string;
   feesKobo: number | null;
@@ -171,6 +171,14 @@ export class FakePaystack implements PaystackClient {
     return this.refundResult(id);
   }
 
+  async listTransactions() {
+    return [...this.transactions.entries()].map(([reference, t]) => ({ reference, status: t.status, amountKobo: t.amountKobo, currency: t.currency }));
+  }
+
+  async listTransfers() {
+    return [...this.transfers.entries()].map(([reference, t]) => ({ reference, status: t.status, amountKobo: t.amountKobo }));
+  }
+
   async listRefundsSince(): Promise<(RefundResult & { merchantNote: string | null })[]> {
     return [...this.refunds.keys()].map((id) => ({ ...this.refundResult(id), merchantNote: this.refunds.get(id)!.merchantNote }));
   }
@@ -208,7 +216,7 @@ export class FakePaystack implements PaystackClient {
   }
 
   /** The bank finishes the transfer; returns Paystack's signed webhook about it. */
-  finishTransfer(reference: string, status: "success" | "failed" | "reversed", feeKobo = 2_500) {
+  finishTransfer(reference: string, status: "success" | "failed" | "reversed" | "blocked" | "rejected" | "abandoned", feeKobo = 2_500) {
     const t = this.transfers.get(reference);
     if (!t) throw new Error(`no transfer ${reference}`);
     t.status = status;
