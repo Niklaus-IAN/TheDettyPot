@@ -29,6 +29,7 @@ const EXPECTED: Record<PotAction, string> = {
   "ledger.view": "OCM",
   "contribution.make": "OCM",
   "payout.request": "O",
+  "payout.flag": "OCM",
 };
 
 const LETTER: Record<PotRole, string> = { organiser: "O", co_organiser: "C", member: "M" };

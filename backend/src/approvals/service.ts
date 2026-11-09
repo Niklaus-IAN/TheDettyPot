@@ -4,6 +4,7 @@ import { authorizePot } from "../auth/pot-access.js";
 import type { Database, Db } from "../db/index.js";
 import { conflict, forbidden, notFound } from "../errors.js";
 import { notifyPotMembers, notifyUser } from "../notifications/service.js";
+import { evaluatePayout } from "../payouts/service.js";
 import { CLOSED, lockPot, type Actor, type Stage } from "../pots/service.js";
 import type { User } from "../users/service.js";
 
@@ -14,6 +15,30 @@ export const APPROVAL_TTL_HOURS = 72;
 
 /** More than half of the people who get a vote. */
 export const majorityOf = (eligibleVoters: number) => Math.floor(eligibleVoters / 2) + 1;
+
+/**
+ * Who may vote: for payouts, the contributors fixed when the vote opened; for
+ * everything else, people who were active members when it opened.
+ */
+async function mayVote(db: Db, request: ApprovalRow, userId: string): Promise<boolean> {
+  if (request.kind === "payout") {
+    const listed = await db
+      .selectFrom("pot_approval_voters")
+      .select("user_id")
+      .where("request_id", "=", request.id)
+      .where("user_id", "=", userId)
+      .executeTakeFirst();
+    return Boolean(listed);
+  }
+  const member = await db
+    .selectFrom("pot_members")
+    .select("joined_at")
+    .where("pot_id", "=", request.pot_id)
+    .where("user_id", "=", userId)
+    .where("status", "=", "active")
+    .executeTakeFirst();
+  return Boolean(member?.joined_at && member.joined_at <= request.created_at);
+}
 
 const approvalClosed = (status: string) =>
   conflict("APPROVAL_CLOSED", status === "expired" ? "Voting on this has closed" : `This decision is already ${status}`);
@@ -42,8 +67,12 @@ async function tally(db: Db, requestId: string) {
   };
 }
 
-/** Applies the outcome once the votes decide it. Call with the request row locked. */
-async function resolveIfDecided(db: Db, request: ApprovalRow, actor: Actor): Promise<string> {
+/**
+ * Applies the outcome once the votes decide it. Call with the request row
+ * locked. For a payout, this only records the decision: the payout itself
+ * moves on in the payouts service (evaluatePayout), which reads it.
+ */
+export async function resolveIfDecided(db: Db, request: ApprovalRow, actor: Actor): Promise<string> {
   const { approvals, rejections } = await tally(db, request.id);
   const canStillPass = request.eligible_voters - rejections >= request.required_approvals;
 
@@ -51,6 +80,20 @@ async function resolveIfDecided(db: Db, request: ApprovalRow, actor: Actor): Pro
   if (approvals >= request.required_approvals) outcome = "approved";
   else if (!canStillPass) outcome = "rejected";
   if (!outcome) return "open";
+
+  if (request.kind === "payout") {
+    await db.updateTable("pot_approval_requests").set({ status: outcome }).where("id", "=", request.id).execute();
+    await recordAudit(db, {
+      actorUserId: actor.user.id,
+      action: `approval.${outcome}`,
+      potId: request.pot_id,
+      subjectType: "approval",
+      subjectId: request.id,
+      requestId: actor.requestId,
+      metadata: { kind: request.kind, payoutId: request.payout_id, approvals, rejections, required: request.required_approvals },
+    });
+    return outcome;
+  }
 
   const nomineeId = request.subject_user_id!;
   if (outcome === "approved") {
@@ -195,16 +238,12 @@ export async function voteOnApproval(
     if (request.subject_user_id === actor.user.id) {
       throw forbidden("You can't vote on a decision about yourself");
     }
-    // Only people who were members when the vote opened count towards it.
-    const voter = await trx
-      .selectFrom("pot_members")
-      .select("joined_at")
-      .where("pot_id", "=", potId)
-      .where("user_id", "=", actor.user.id)
-      .where("status", "=", "active")
-      .executeTakeFirst();
-    if (!voter?.joined_at || voter.joined_at > request.created_at) {
-      throw forbidden("Only people who were in the pot when this vote opened can vote on it");
+    if (!(await mayVote(trx, request, actor.user.id))) {
+      throw forbidden(
+        request.kind === "payout"
+          ? "Only people who had paid in when this vote opened can vote on it"
+          : "Only people who were in the pot when this vote opened can vote on it",
+      );
     }
     const already = await trx
       .selectFrom("pot_approval_votes")
@@ -216,6 +255,7 @@ export async function voteOnApproval(
 
     await trx.insertInto("pot_approval_votes").values({ request_id: requestId, user_id: actor.user.id, decision }).execute();
     await resolveIfDecided(trx, request, actor);
+    if (request.kind === "payout" && request.payout_id) await evaluatePayout(trx, request.payout_id);
     return trx.selectFrom("pot_approval_requests").selectAll().where("id", "=", requestId).executeTakeFirstOrThrow();
   });
 }
@@ -286,9 +326,8 @@ export interface ApprovalView {
 
 /** Open decisions first, then the 20 most recent closed ones. */
 export async function listApprovals(db: Db, user: User, potId: string): Promise<ApprovalView[]> {
-  const access = await authorizePot(db, user, potId, "pot.view");
+  await authorizePot(db, user, potId, "pot.view");
   await expireDueApprovals(db, { potId });
-  const me = await db.selectFrom("pot_members").select("joined_at").where("id", "=", access.membershipId).executeTakeFirstOrThrow();
 
   const base = db
     .selectFrom("pot_approval_requests as r")
@@ -311,6 +350,9 @@ export async function listApprovals(db: Db, user: User, potId: string): Promise<
     )
     .execute();
 
+  const eligible = new Map<string, boolean>();
+  for (const { subject_name: _ignored, ...request } of rows) eligible.set(request.id, await mayVote(db, request, user.id));
+
   return rows.map(({ subject_name, ...request }) => {
     const cast = votes.filter((v) => v.request_id === request.id);
     const myVote = (cast.find((v) => v.user_id === user.id)?.decision ?? null) as ApprovalView["myVote"];
@@ -320,12 +362,7 @@ export async function listApprovals(db: Db, user: User, potId: string): Promise<
       approvals: cast.filter((v) => v.decision === "approve").length,
       rejections: cast.filter((v) => v.decision === "reject").length,
       myVote,
-      canVote:
-        request.status === "open" &&
-        myVote === null &&
-        request.subject_user_id !== user.id &&
-        me.joined_at !== null &&
-        me.joined_at <= request.created_at,
+      canVote: request.status === "open" && myVote === null && request.subject_user_id !== user.id && eligible.get(request.id) === true,
     };
   });
 }

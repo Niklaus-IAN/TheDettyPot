@@ -36,6 +36,17 @@ export interface AuditEvents {
   subject_type: string | null;
 }
 
+export interface BankAccounts {
+  account_name: string;
+  account_number: string;
+  bank_code: string;
+  bank_name: string;
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  id: Generated<string>;
+  provider_recipient_code: string | null;
+}
+
 export interface FeeSchedules {
   cap_kobo: number | null;
   created_at: Generated<Timestamp>;
@@ -138,12 +149,39 @@ export interface Payments {
   user_id: string;
 }
 
+export interface Payouts {
+  amount_kobo: number;
+  approval_request_id: string | null;
+  bank_account_id: string;
+  completed_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  failure_reason: string | null;
+  flag_reason: string | null;
+  flagged_by: string | null;
+  hold_reasons: Generated<string[]>;
+  hold_until: Timestamp | null;
+  id: Generated<string>;
+  narration: string | null;
+  pot_id: string;
+  provider_fee_kobo: number | null;
+  reference: string;
+  release_txn_id: string | null;
+  requested_by: string;
+  reserve_txn_id: string;
+  sent_at: Timestamp | null;
+  settle_txn_id: string | null;
+  status: string;
+  transfer_code: string | null;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface PotApprovalRequests {
   created_at: Generated<Timestamp>;
   eligible_voters: number;
   expires_at: Timestamp;
   id: Generated<string>;
   kind: string;
+  payout_id: string | null;
   pot_id: string;
   requested_by: string;
   required_approvals: number;
@@ -151,6 +189,11 @@ export interface PotApprovalRequests {
   status: Generated<string>;
   subject_user_id: string | null;
   updated_at: Generated<Timestamp>;
+}
+
+export interface PotApprovalVoters {
+  request_id: string;
+  user_id: string;
 }
 
 export interface PotApprovalVotes {
@@ -261,6 +304,7 @@ export interface WebhookEvents {
 
 export interface DB {
   audit_events: AuditEvents;
+  bank_accounts: BankAccounts;
   fee_schedules: FeeSchedules;
   ledger_account_balances: LedgerAccountBalances;
   ledger_accounts: LedgerAccounts;
@@ -269,7 +313,9 @@ export interface DB {
   notification_deliveries: NotificationDeliveries;
   notifications: Notifications;
   payments: Payments;
+  payouts: Payouts;
   pot_approval_requests: PotApprovalRequests;
+  pot_approval_voters: PotApprovalVoters;
   pot_approval_votes: PotApprovalVotes;
   pot_invites: PotInvites;
   pot_members: PotMembers;

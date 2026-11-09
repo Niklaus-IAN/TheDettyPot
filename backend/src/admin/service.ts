@@ -236,3 +236,14 @@ export async function webhooksByStatus(db: Db, status: string, limit = 100) {
     .limit(limit)
     .execute();
 }
+
+export async function payoutsByStatus(db: Db, status: string, limit = 100) {
+  return db
+    .selectFrom("payouts as p")
+    .innerJoin("bank_accounts as b", "b.id", "p.bank_account_id")
+    .select(["p.id", "p.pot_id", "p.status", "p.amount_kobo", "p.hold_until", "p.hold_reasons", "p.flag_reason", "p.failure_reason", "p.reference", "p.created_at", "b.account_name", "b.bank_name"])
+    .where("p.status", "=", status)
+    .orderBy("p.created_at", "desc")
+    .limit(limit)
+    .execute();
+}
