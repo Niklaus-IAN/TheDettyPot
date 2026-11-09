@@ -35,7 +35,11 @@ export const POT_PERMISSIONS = {
   // Taking co-organiser rights back needs no vote: it only reduces power.
   "co_organiser.demote": { roles: ORGANISER },
   "approval.vote": { roles: ANY },
-  "venue.select": { roles: ORGANISERS },
+  // Only the organiser picks the final venue (FR-PLN-05).
+  "venue.select": { roles: ORGANISER },
+  // Anyone can add a venue to the vote (AI-05), vote, and answer the date poll.
+  "plan.add": { roles: ANY },
+  "plan.vote": { roles: ANY },
   "ledger.view": { roles: ANY },
   "contribution.make": { roles: ANY, verifiedEmail: true },
   // Co-organisers have every organiser right except payouts (FR-POT-04).
