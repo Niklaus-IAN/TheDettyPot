@@ -55,7 +55,10 @@ Early build. Done so far:
 
 - Rolling leftover money into a new outing, with each contributor's consent.
 
-Next: real venues and the AI planner, then deployment to AWS.
+- Venues: Google Places search, a shortlist with live details, voting, the
+  organiser's pick, and a date poll.
+
+Next: the AI planner and the brochure, then deployment to AWS.
 
 ## Getting started
 

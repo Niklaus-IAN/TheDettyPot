@@ -30,6 +30,8 @@ const configSchema = z
     // Paystack. Without a secret key, payment endpoints answer 503.
     PAYSTACK_SECRET_KEY: z.string().regex(/^sk_(test|live)_[A-Za-z0-9]+$/, "must be a Paystack secret key").optional(),
     PAYSTACK_BASE_URL: z.url().default("https://api.paystack.co"),
+    // Google Maps Platform (Places API (New), Routes API). Without it, venue search answers 503.
+    GOOGLE_MAPS_API_KEY: z.string().min(20).optional(),
     RATE_LIMIT_ENABLED: z.stringbool().default(true),
     TRUST_PROXY: z.stringbool().default(false),
     // Sign-in tokens are issued by an OpenID Connect provider (Cognito or similar).

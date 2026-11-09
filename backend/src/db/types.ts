@@ -203,6 +203,21 @@ export interface PotApprovalVotes {
   user_id: string;
 }
 
+export interface PotDateAnswers {
+  available: boolean;
+  option_id: string;
+  updated_at: Generated<Timestamp>;
+  user_id: string;
+}
+
+export interface PotDateOptions {
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  date: string;
+  id: Generated<string>;
+  pot_id: string;
+}
+
 export interface PotInvites {
   created_at: Generated<Timestamp>;
   created_by: string;
@@ -255,12 +270,31 @@ export interface Pots {
   outing_date: string | null;
   outing_time: string | null;
   payout_approval_required: Generated<boolean>;
+  selected_venue_id: string | null;
   share_kobo: ColumnType<number, never, never>;
   stage: Generated<string>;
   stage_changed_at: Generated<Timestamp>;
   timezone: Generated<string>;
   updated_at: Generated<Timestamp>;
+  venue_voting_deadline: Timestamp | null;
   vibe: Generated<string>;
+}
+
+export interface PotVenues {
+  added_by: string;
+  cost_kobo: number | null;
+  cost_source: string | null;
+  created_at: Generated<Timestamp>;
+  custom_address: string | null;
+  custom_name: string | null;
+  id: Generated<string>;
+  kind: string;
+  note: string | null;
+  place_id: string | null;
+  pot_id: string;
+  removed_at: Timestamp | null;
+  removed_by: string | null;
+  source: Generated<string>;
 }
 
 export interface ReconciliationFindings {
@@ -357,6 +391,12 @@ export interface Users {
   updated_at: Generated<Timestamp>;
 }
 
+export interface VenueVotes {
+  created_at: Generated<Timestamp>;
+  user_id: string;
+  venue_id: string;
+}
+
 export interface WaitlistSignups {
   created_at: Generated<Timestamp>;
   email: string | null;
@@ -395,8 +435,11 @@ export interface DB {
   pot_approval_requests: PotApprovalRequests;
   pot_approval_voters: PotApprovalVoters;
   pot_approval_votes: PotApprovalVotes;
+  pot_date_answers: PotDateAnswers;
+  pot_date_options: PotDateOptions;
   pot_invites: PotInvites;
   pot_members: PotMembers;
+  pot_venues: PotVenues;
   pots: Pots;
   reconciliation_findings: ReconciliationFindings;
   reconciliation_runs: ReconciliationRuns;
@@ -405,6 +448,7 @@ export interface DB {
   rollovers: Rollovers;
   settlements: Settlements;
   users: Users;
+  venue_votes: VenueVotes;
   waitlist_signups: WaitlistSignups;
   webhook_events: WebhookEvents;
 }

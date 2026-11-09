@@ -23,7 +23,7 @@ export function apiFor(getApp: () => TestApp) {
     return { token, id: me.json().id };
   }
 
-  const call = (who: Person | null, method: "GET" | "POST" | "PATCH", url: string, payload?: object) =>
+  const call = (who: Person | null, method: "GET" | "POST" | "PATCH" | "PUT", url: string, payload?: object) =>
     app().inject({
       method,
       url,

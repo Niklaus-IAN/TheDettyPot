@@ -57,6 +57,13 @@ export const NOTIFICATIONS = {
         : `Payouts from ${potName(c)} no longer need members' approval`,
   },
 
+  // ─── The plan ───
+  venue_selected: {
+    email: true,
+    title: (c) => `The venue for ${potName(c)} is chosen`,
+    body: () => "See where you're going on the pot page.",
+  },
+
   // ─── Payments ───
   payment_received: {
     email: true,

@@ -127,6 +127,11 @@ All amounts are integers in **kobo** (₦1 = 100 kobo). Full, interactive refere
 | `POST /pots/:id/members/:userId/demote` | Take co-organiser rights back (no vote needed) |
 | `POST /pots/:id/invites/email` | Invite someone by email, with or without an account (single use, tied to that verified address) |
 | `GET /notifications`, `POST /notifications/read` | Your notifications with ready-to-show text, and marking them read |
+| `GET /pots/:id/places/search?q=` | Search real places (Google Maps) near the pot's area |
+| `GET/POST /pots/:id/venues`, `…/:venueId/vote\|unvote\|remove\|select` | The venue shortlist with live details; voting; the organiser's pick |
+| `PATCH /pots/:id/venue-voting` | Set or clear the venue voting deadline |
+| `GET/POST /pots/:id/dates`, `PUT …/:optionId/answer` | The date poll |
+| `GET /places/photo?name=` | A venue photo, via Google, without exposing the API key |
 | `GET /pots/:id/payments/options` | What you owe, the minimum, and share + fee = total for card and bank transfer |
 | `POST /pots/:id/payments` | Start a payment; send the member to `checkoutUrl` |
 | `GET /pots/:id/payments/mine`, `…/:paymentId` | Payment status |
@@ -161,6 +166,18 @@ Co-organisers: the organiser nominates a member; a majority of the other active
 members must approve within 72 hours, and the organiser's nomination counts as
 their yes (so in a two-person pot it passes at once). Only people who were in
 the pot when the vote opened can vote.
+
+## Venues
+
+Google's terms shape how venues work: only Google's **place ID** is stored. A
+venue's name, address, rating, hours and photos are fetched fresh from Google
+whenever they're shown, and notifications carry our venue ID, never the name.
+Custom venues (someone's house) keep what members typed. Photos go through
+`/places/photo`, which swaps Google's keyed URL for a key-free one, and every
+place in a response carries `attribution: "Google Maps"`, which screens must show
+along with each photo's author credit. Costs are labelled: the organiser's own
+figure, or an estimate (AI-03). The chosen venue locks once the pot is confirmed,
+in the API and in the database.
 
 ## Money
 
@@ -262,8 +279,9 @@ anything. It reads one table, [`src/auth/permissions.ts`](src/auth/permissions.t
 |---|:-:|:-:|:-:|
 | View the pot, its ledger; vote on approvals | ✓ | ✓ | ✓ |
 | Contribute (verified email required) | ✓ | ✓ | ✓ |
-| Edit details, move the stage, manage invites, approve joins, remove members, select the venue | ✓ | ✓ | |
-| Cancel the pot (refunds everyone), go ahead with less after a missed deadline, change approval settings, nominate co-organisers | ✓ | | |
+| Add venues, vote on venues and dates | ✓ | ✓ | ✓ |
+| Edit details, move the stage, manage invites, approve joins, remove members, run the date poll | ✓ | ✓ | |
+| Choose the venue (FR-PLN-05), cancel the pot (refunds everyone), go ahead with less after a missed deadline, change approval settings, nominate co-organisers | ✓ | | |
 | Request a payout (verified email required) | ✓ | | |
 
 Co-organisers can only remove plain members; nobody can remove the organiser.
