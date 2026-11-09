@@ -120,46 +120,333 @@ input {
   white-space: nowrap;
 }
 
-/* ─── Background glow ─── */
-.glow {
+/* ─── Hero background: drifting orbs, a faint grid and meteor streaks ─── */
+.hero-section {
+  position: relative;
+  min-height: calc(100svh - 68px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding-bottom: 72px;
+}
+.hero-bg {
   position: absolute;
-  inset: 0 0 auto 0;
-  height: 900px;
-  pointer-events: none;
+  inset: -68px 0 0 0;
   overflow: hidden;
+  pointer-events: none;
   z-index: 0;
 }
-.glow::before,
-.glow::after {
-  content: "";
+.orb {
   position: absolute;
   border-radius: 50%;
-  filter: blur(90px);
-  opacity: 0.55;
+  filter: blur(60px);
 }
-.glow::before {
-  width: 560px;
-  height: 560px;
-  left: 50%;
-  top: -220px;
-  background: radial-gradient(circle, rgba(255, 107, 44, 0.55), transparent 65%);
+.orb-1 {
+  width: 640px;
+  height: 640px;
+  top: -18%;
+  left: -12%;
+  background: radial-gradient(circle, rgba(255, 107, 44, 0.24), transparent 70%);
 }
-.glow::after {
-  width: 420px;
-  height: 420px;
-  left: 8%;
-  top: 180px;
-  background: radial-gradient(circle, rgba(255, 77, 106, 0.35), transparent 65%);
+.orb-2 {
+  width: 540px;
+  height: 540px;
+  bottom: -12%;
+  right: -8%;
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.2), transparent 70%);
 }
-:root[data-theme="light"] .glow::before,
-:root[data-theme="light"] .glow::after {
-  opacity: 0.32;
+.orb-3 {
+  width: 340px;
+  height: 340px;
+  top: 38%;
+  right: 22%;
+  background: radial-gradient(circle, rgba(255, 77, 106, 0.18), transparent 70%);
+}
+.grid-lines {
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 80px 80px;
+  mask-image: radial-gradient(ellipse 80% 70% at 50% 40%, #000 40%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 40%, #000 40%, transparent 100%);
+}
+.meteor {
+  position: absolute;
+  left: 0;
+  width: 160px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 107, 44, 0.75), transparent);
+  opacity: 0;
+}
+.meteor.m1 {
+  top: 18%;
+}
+.meteor.m2 {
+  top: 44%;
+}
+.meteor.m3 {
+  top: 68%;
+}
+:root {
+  --grid: rgba(255, 247, 240, 0.028);
+}
+:root[data-theme="light"] {
+  --grid: rgba(26, 18, 12, 0.045);
 }
 @media (prefers-color-scheme: light) {
-  :root:not([data-theme="dark"]) .glow::before,
-  :root:not([data-theme="dark"]) .glow::after {
-    opacity: 0.32;
+  :root:not([data-theme="dark"]) {
+    --grid: rgba(26, 18, 12, 0.045);
   }
+}
+
+/* ─── Scroll cue ─── */
+.scroll-cue {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  z-index: 1;
+  text-decoration: none;
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  opacity: 0.75;
+}
+.scroll-cue .mouse {
+  display: flex;
+  justify-content: center;
+  width: 22px;
+  height: 34px;
+  padding-top: 7px;
+  border-radius: 12px;
+  border: 1.5px solid var(--text-muted);
+}
+.scroll-cue .mouse span {
+  width: 3px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--orange);
+}
+@media (max-width: 960px) {
+  .scroll-cue {
+    display: none;
+  }
+}
+
+/* ─── Orbit around the pot card ─── */
+.orbit {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  z-index: 0;
+}
+.orbit-ring {
+  position: absolute;
+  width: 600px;
+  height: 600px;
+  margin: -300px 0 0 -300px;
+  border-radius: 50%;
+  border: 1px dashed var(--line-strong);
+  opacity: 0.6;
+}
+.orbit-item {
+  position: absolute;
+  margin: -20px 0 0 -20px;
+}
+.orbit-item > span {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 13px;
+  border: 1px solid var(--line-strong);
+  background: color-mix(in srgb, var(--bg-raised) 80%, transparent);
+  backdrop-filter: blur(10px);
+  font-size: 19px;
+  box-shadow: var(--shadow);
+}
+.orbit-item.o1 {
+  transform: rotate(-40deg) translateX(300px) rotate(40deg);
+}
+.orbit-item.o2 {
+  transform: rotate(110deg) translateX(300px) rotate(-110deg);
+}
+.orbit-item.o3 {
+  transform: rotate(215deg) translateX(300px) rotate(-215deg);
+}
+@media (max-width: 960px) {
+  .orbit {
+    display: none;
+  }
+}
+
+/* ─── Motion (all of it off for people who ask for less) ─── */
+.join-prompt {
+  margin: 30px 0 0;
+  font-size: 16.5px;
+  color: var(--text-soft);
+}
+.join-prompt strong {
+  color: var(--text);
+}
+.join-prompt + .signup {
+  margin-top: 12px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .rise {
+    animation: rise 0.9s var(--ease) both;
+  }
+  .d1 {
+    animation-delay: 0.15s;
+  }
+  .d2 {
+    animation-delay: 0.3s;
+  }
+  .d3 {
+    animation-delay: 0.45s;
+  }
+  .d4 {
+    animation-delay: 0.6s;
+  }
+  .pop {
+    animation: pop 1.1s 0.45s var(--ease) both;
+  }
+  .shift {
+    background-size: 220% 220%;
+    animation: shift 5s ease infinite;
+  }
+  .eyebrow .dot {
+    animation: ping 2s ease-in-out infinite;
+  }
+  .orb-1 {
+    animation: drift 9s ease-in-out infinite;
+  }
+  .orb-2 {
+    animation: drift 11s ease-in-out 2s infinite;
+  }
+  .orb-3 {
+    animation: drift 7s ease-in-out 1s infinite;
+  }
+  .meteor.m1 {
+    animation: meteor 5s linear 0.5s infinite;
+  }
+  .meteor.m2 {
+    animation: meteor 6s linear 3s infinite;
+  }
+  .meteor.m3 {
+    animation: meteor 7s linear 6s infinite;
+  }
+  .orbit-item.o1 {
+    animation: orbit1 26s linear infinite;
+  }
+  .orbit-item.o2 {
+    animation: orbit2 32s linear infinite;
+  }
+  .orbit-item.o3 {
+    animation: orbit3 38s linear infinite;
+  }
+  .scroll-cue .mouse span {
+    animation: nudge 1.6s ease-in-out infinite;
+  }
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(30px);
+    }
+  }
+  @keyframes pop {
+    from {
+      opacity: 0;
+      transform: translateY(24px) scale(0.95);
+    }
+  }
+  @keyframes shift {
+    0%,
+    100% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+  }
+  @keyframes ping {
+    0%,
+    100% {
+      box-shadow: 0 0 0 4px var(--green-soft);
+    }
+    50% {
+      box-shadow: 0 0 0 8px transparent;
+    }
+  }
+  @keyframes drift {
+    0%,
+    100% {
+      transform: translate(0, 0);
+    }
+    50% {
+      transform: translate(24px, -28px);
+    }
+  }
+  @keyframes meteor {
+    0% {
+      opacity: 0;
+      transform: translate(-160px, -60px);
+    }
+    10%,
+    80% {
+      opacity: 0.8;
+    }
+    100% {
+      opacity: 0;
+      transform: translate(min(1100px, 90vw), 380px);
+    }
+  }
+  @keyframes orbit1 {
+    from {
+      transform: rotate(-40deg) translateX(300px) rotate(40deg);
+    }
+    to {
+      transform: rotate(320deg) translateX(300px) rotate(-320deg);
+    }
+  }
+  @keyframes orbit2 {
+    from {
+      transform: rotate(110deg) translateX(300px) rotate(-110deg);
+    }
+    to {
+      transform: rotate(470deg) translateX(300px) rotate(-470deg);
+    }
+  }
+  @keyframes orbit3 {
+    from {
+      transform: rotate(215deg) translateX(300px) rotate(-215deg);
+    }
+    to {
+      transform: rotate(575deg) translateX(300px) rotate(-575deg);
+    }
+  }
+  @keyframes nudge {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(8px);
+    }
+  }
+}
+
+/* The pot card sits above the orbit. */
+.pot-card,
+.toast {
+  z-index: 1;
 }
 
 /* ─── Layout ─── */
@@ -361,7 +648,7 @@ h3 {
 
 /* ─── Hero ─── */
 .hero {
-  padding-top: 64px;
+  padding-top: 48px;
   display: grid;
   grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
   gap: 56px;
@@ -549,6 +836,7 @@ h3 {
   height: 100%;
   border-radius: inherit;
   background: var(--grad);
+  box-shadow: 0 0 18px var(--glow);
 }
 @media (prefers-reduced-motion: no-preference) {
   .bar > span {

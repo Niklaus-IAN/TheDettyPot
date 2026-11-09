@@ -28,7 +28,7 @@ const SAFETY = [
 const VIBES = ["🏖️ Beach days", "🎉 Owambe", "🎂 Birthday dinners", "🎄 Detty December", "🏡 Staycations", "🎤 Concerts", "🍹 Day parties", "✈️ Squad trips", "💼 Office hangouts"];
 
 const FAQS = [
-  { q: "When does DettyPot launch?", a: "Soon. We're testing with a small group first. Everyone on the waitlist hears the moment it opens, before anyone else." },
+  { q: "When does DettyPot launch?", a: "Soon. We're putting the finishing touches on it. Join the waitlist and we'll email you the moment DettyPot goes live." },
   { q: "Do I need to download an app?", a: "No. DettyPot works in your browser, on your phone or laptop. Tap a link, join the pot, chip in. WhatsApp reminders are coming later." },
   { q: "Is my money safe?", a: "Payments go through Paystack, and every member of a pot can see exactly where the money is. Payouts have holds and checks, and if plans are cancelled, refunds go back automatically." },
   { q: "What does it cost?", a: "Creating a pot is free. When you pay in, there's a small fee to cover the payment provider's cost, shown clearly before you pay. During the beta we add nothing on top." },
@@ -103,8 +103,6 @@ export function App() {
 
   return (
     <>
-      <div className="glow" aria-hidden="true" />
-
       <header className={`nav${scrolled ? " scrolled" : ""}`}>
         <div className="wrap">
           <Brand />
@@ -119,28 +117,52 @@ export function App() {
 
       <main id="top">
         {/* ─── Hero ─── */}
-        <div className="wrap">
-          <div className="hero">
-            <div>
-              <span className="eyebrow">
-                <span className="dot" aria-hidden="true" />
-                Group outings, sorted. Coming soon
-              </span>
-              <h1>
-                Plan the outing.
-                <br />
-                Pool the money.
-                <br />
-                <span className="grad-text">Nobody's owing.</span>
-              </h1>
-              <p className="lede">
-                DettyPot is where your squad plans the link-up, everyone chips in their share, and the spot gets paid, with every naira out in the open. No more
-                “abeg, who never pay?” 😮‍💨
-              </p>
-              <WaitlistForm />
-            </div>
-            <PotCard />
+        <div className="hero-section">
+          <div className="hero-bg" aria-hidden="true">
+            <span className="orb orb-1" />
+            <span className="orb orb-2" />
+            <span className="orb orb-3" />
+            <span className="grid-lines" />
+            <span className="meteor m1" />
+            <span className="meteor m2" />
+            <span className="meteor m3" />
           </div>
+          <div className="wrap">
+            <div className="hero">
+              <div>
+                <span className="eyebrow rise d1">
+                  <span className="dot" aria-hidden="true" />
+                  Not live yet. Coming soon to Lagos
+                </span>
+                <h1 className="rise d2">
+                  Plan the outing.
+                  <br />
+                  Pool the money.
+                  <br />
+                  <span className="grad-text shift">Nobody's owing.</span>
+                </h1>
+                <p className="lede rise d3">
+                  DettyPot is where your squad plans the link-up, everyone chips in their share, and the spot gets paid, with every naira out in the open. No more
+                  “abeg, who never pay?” 😮‍💨
+                </p>
+                <div className="rise d4">
+                  <p className="join-prompt">
+                    Wanna know when we go live? <strong>Join the waitlist.</strong>
+                  </p>
+                  <WaitlistForm />
+                </div>
+              </div>
+              <div className="pop">
+                <PotCard />
+              </div>
+            </div>
+          </div>
+          <a className="scroll-cue" href="#pain-title" aria-label="Scroll down">
+            <span>Scroll</span>
+            <span className="mouse" aria-hidden="true">
+              <span />
+            </span>
+          </a>
         </div>
 
         {/* ─── The problem ─── */}
@@ -306,8 +328,8 @@ export function App() {
               <h2 id="join-title">
                 Your squad deserves better than <span className="grad-text">“I go send am later.”</span>
               </h2>
-              <p className="lede">Join the waitlist and be first in when DettyPot opens.</p>
-              <WaitlistForm cta="Count me in" />
+              <p className="lede">Join the waitlist and be the first to know when DettyPot goes live.</p>
+              <WaitlistForm />
             </div>
           </div>
         </section>

@@ -16,7 +16,8 @@ without it shows an error on submit instead of losing emails silently.
 
 ## Connecting the Google Sheet (once)
 
-1. Create a Google Sheet, for example "DettyPot waitlist".
+1. Open the waitlist sheet (its ID is in `SHEET_ID` at the top of the script;
+   change it to use another sheet). Emails go on its first tab.
 2. **Extensions → Apps Script**. Replace everything there with
    [`google-sheets/waitlist.gs`](google-sheets/waitlist.gs) and save.
 3. **Deploy → New deployment**. Type: **Web app**. Execute as: **Me**. Who has
@@ -26,8 +27,8 @@ without it shows an error on submit instead of losing emails silently.
    ```
    VITE_WAITLIST_URL=https://script.google.com/macros/s/…/exec
    ```
-5. Restart `npm run dev` and sign up with your own email. A **Waitlist** tab
-   appears in the sheet with your row.
+5. Restart `npm run dev` and join with your own email. Your row appears on the
+   sheet's first tab, under headings the script adds the first time.
 
 After changing the script, use **Deploy → Manage deployments → Edit → New
 version**, so the URL stays the same.

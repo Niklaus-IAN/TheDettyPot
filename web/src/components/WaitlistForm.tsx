@@ -3,7 +3,7 @@ import { EMAIL, joinWaitlist, type JoinResult } from "../waitlist";
 
 type State = { kind: "idle" } | { kind: "sending" } | { kind: "done"; result: JoinResult; email: string } | { kind: "error"; message: string };
 
-export function WaitlistForm({ cta = "Get early access" }: { cta?: string }) {
+export function WaitlistForm({ cta = "Join the waitlist" }: { cta?: string }) {
   const id = useId();
   const [email, setEmail] = useState("");
   const [trap, setTrap] = useState("");
@@ -33,9 +33,9 @@ export function WaitlistForm({ cta = "Get early access" }: { cta?: string }) {
             ✓
           </span>
           <div>
-            <strong>{state.result === "already" ? "You're already on the list 🙌" : "You're in! 🎉"}</strong>
+            <strong>{state.result === "already" ? "You're already on the waitlist 🙌" : "You're on the waitlist! 🎉"}</strong>
             <span>
-              We'll email <b>{state.email}</b> the moment DettyPot opens. Tell the squad.
+              We'll email <b>{state.email}</b> the moment DettyPot goes live. Tell the squad.
             </span>
           </div>
         </div>
@@ -67,11 +67,11 @@ export function WaitlistForm({ cta = "Get early access" }: { cta?: string }) {
         {/* Hidden from people; bots fill it in and get quietly ignored. */}
         <input className="trap" type="text" name="website" tabIndex={-1} autoComplete="off" aria-hidden="true" value={trap} onChange={(e) => setTrap(e.target.value)} />
         <button className="btn" type="submit" disabled={state.kind === "sending"}>
-          {state.kind === "sending" ? "Adding you…" : cta}
+          {state.kind === "sending" ? "Joining…" : cta}
         </button>
       </div>
       <p id={`${id}-msg`} className={`signup-msg${state.kind === "error" ? " error" : ""}`} aria-live="polite">
-        {state.kind === "error" ? state.message : "No spam. One email when we open, that's it."}
+        {state.kind === "error" ? state.message : "No spam. We'll only email you when we go live."}
       </p>
     </form>
   );

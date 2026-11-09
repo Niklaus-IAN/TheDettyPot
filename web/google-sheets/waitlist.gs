@@ -1,13 +1,15 @@
 /**
- * DettyPot waitlist: saves emails from the website into this Google Sheet.
+ * DettyPot waitlist: saves emails from the website into the waitlist Google Sheet.
  *
  * Setup (once): open the Sheet → Extensions → Apps Script → paste this file →
  * Deploy → New deployment → Web app → Execute as: Me, Who has access: Anyone →
  * copy the web app URL into the website's VITE_WAITLIST_URL.
  *
- * Each email is saved once (lower-cased). Rows: time, email, source, referrer.
+ * Each email is saved once (lower-cased), on the sheet's first tab.
+ * Columns: time, email, source, referrer.
  */
-const SHEET_NAME = "Waitlist";
+// The waitlist sheet: docs.google.com/spreadsheets/d/<this id>/edit
+const SHEET_ID = "1G5G0ilsWmjllAcV3uN6ylhF2N6GF6k2IjUypwC1pe_o";
 const HEADERS = ["Joined at", "Email", "Source", "Referrer"];
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -39,12 +41,12 @@ function doPost(e) {
 }
 
 function waitlistSheet() {
-  const book = SpreadsheetApp.getActiveSpreadsheet();
-  let sheet = book.getSheetByName(SHEET_NAME);
-  if (!sheet) {
-    sheet = book.insertSheet(SHEET_NAME);
+  const sheet = SpreadsheetApp.openById(SHEET_ID).getSheets()[0];
+  // First run: give the empty tab its headings.
+  if (sheet.getLastRow() === 0) {
     sheet.appendRow(HEADERS);
     sheet.setFrozenRows(1);
+    sheet.getRange(1, 1, 1, HEADERS.length).setFontWeight("bold");
   }
   return sheet;
 }

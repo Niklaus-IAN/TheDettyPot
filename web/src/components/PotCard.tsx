@@ -9,6 +9,14 @@ const MEMBERS = [
 export function PotCard() {
   return (
     <div className="pot-stage" aria-label="Example of a DettyPot pot">
+      <div className="orbit" aria-hidden="true">
+        <span className="orbit-ring" />
+        {["🏖️", "💸", "🤖"].map((e, i) => (
+          <span className={`orbit-item o${i + 1}`} key={e}>
+            <span>{e}</span>
+          </span>
+        ))}
+      </div>
       <div className="pot-card">
         <div className="pot-top">
           <div>
