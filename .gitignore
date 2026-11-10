@@ -20,3 +20,6 @@ coverage/
 
 # Logs
 *.log
+
+# Local-only documents (requirements, notes). Never pushed: this repo is public.
+private/

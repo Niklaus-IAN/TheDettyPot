@@ -12,10 +12,13 @@ member can see where their money went.
 | Path | What it is |
 |---|---|
 | [`backend/`](backend/) | The API: TypeScript, Fastify, Postgres. Owns every pot, member and naira. |
+| [`web/`](web/) | The website. For now, the waitlist page; emails go to a Google Sheet. |
 | [`docs/`](docs/) | How the project is run, starting with [environments and shipping](docs/environments.md). |
 
 The website and the WhatsApp assistant will talk only to the backend API;
 nothing reaches the database or a payment provider directly from a browser.
+(The waitlist page is the one exception for now: it saves emails to a Google
+Sheet, until the backend is live.)
 
 ## Status
 
