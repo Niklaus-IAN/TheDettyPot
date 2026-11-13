@@ -16,7 +16,7 @@ export const MAX_DATE_OPTIONS = 14;
 /** The plan can change until the booking is confirmed. */
 export const PLANNING_STAGES = ["planning", "collecting", "funded"];
 
-const placesUnavailable = () => new AppError(503, "PLACES_UNAVAILABLE", "Venue search isn't available right now");
+export const placesUnavailable = () => new AppError(503, "PLACES_UNAVAILABLE", "Venue search isn't available right now");
 const placesFailed = (err: unknown) =>
   err instanceof PlacesError && err.httpStatus !== null && err.httpStatus < 500 && err.httpStatus !== 429
     ? badRequest("PLACE_NOT_FOUND", "We couldn't find that place")

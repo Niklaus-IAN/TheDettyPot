@@ -136,9 +136,10 @@ All amounts are integers in **kobo** (₦1 = 100 kobo). Full, interactive refere
 | `PATCH /pots/:id/venue-voting` | Set or clear the venue voting deadline |
 | `GET/POST /pots/:id/dates`, `PUT …/:optionId/answer` | The date poll |
 | `GET /places/photo?name=` | A venue photo, via Google, without exposing the API key |
-| `GET /pots/:id/places/:placeId` | One place's live details (older planner suggestions load these when shown) |
+| `GET /pots/:id/places/:placeId` | One place's live details from Google |
 | `GET /pots/:id/planner` | The pot's conversation with the AI planner, its suggestions, and today's remaining questions |
 | `POST /pots/:id/planner/messages`, `…/regenerate` | Ask the planner (answered in the background: poll while `busy`); answer the latest question again |
+| `GET /pots/:id/planner/replies/:replyId/places` | Live Google details for one answer's suggestions: load once when the answer is shown |
 | `POST /pots/:id/planner/suggestions/:suggestionId/add` | Put a planner suggestion to the vote |
 | `GET /admin/ai-usage?days=` | What the planner has cost, by model and purpose, and the costliest pots |
 | `GET /pots/:id/payments/options` | What you owe, the minimum, and share + fee = total for card and bank transfer |
@@ -205,6 +206,9 @@ How an answer is made:
 - Each suggestion has why it fits, a cost per person that is always labelled an
   estimate (AI-03), and an optional safety note labelled "AI guidance", with any
   score or percentage refused (AI-04). Only the place ID is kept (AI-10).
+- Polling the conversation never calls Google, since every place lookup is
+  billed. The screen loads an answer's place details once, when it shows the
+  answer, from `GET /pots/:id/planner/replies/:replyId/places`.
 - Answering again replaces the old answer and its suggestions (AI-07). A member
   can put any suggestion to the vote; it joins the shortlist as a planner pick.
 - Long conversations: older messages are folded into a short summary by the

@@ -6,6 +6,10 @@ export class FakePlaces implements PlacesClient {
   /** When true, every call fails as if Google were unreachable. */
   down = false;
   searches: string[] = [];
+  /** Every place looked up by ID: each is a billed Google call. */
+  lookups: string[] = [];
+  /** Places Google fails to return, as if briefly unavailable. */
+  failing = new Set<string>();
 
   add(p: Partial<Place> & { id: string; name: string }): Place {
     const place: Place = {
@@ -37,6 +41,8 @@ export class FakePlaces implements PlacesClient {
 
   async getPlace(placeId: string): Promise<Place> {
     if (this.down) throw new PlacesError("Google Places unreachable", null);
+    this.lookups.push(placeId);
+    if (this.failing.has(placeId)) throw new PlacesError("Google Places unreachable", null);
     const p = this.places.get(placeId);
     if (!p) throw new PlacesError("Not found", 404);
     return p;
