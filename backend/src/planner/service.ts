@@ -8,7 +8,7 @@ import { naira } from "../notifications/catalog.js";
 import type { Place, PlacesClient } from "../places/client.js";
 import { lockPot, type Actor } from "../pots/service.js";
 import type { User } from "../users/service.js";
-import { addVenue, PLANNING_STAGES, type VenueRow } from "../venues/service.js";
+import { addVenue, placesUnavailable, PLANNING_STAGES, type VenueRow } from "../venues/service.js";
 import { callClaude, withFallback, type ClaudeClient, type ClaudeMessage, type ClaudeMessageParam, type ClaudeTool, type ClaudeToolResult } from "./claude.js";
 
 type MessageRow = Selectable<Database["planner_messages"]>;
@@ -125,8 +125,6 @@ export async function regenerateAnswer(db: Db, deps: PlannerDeps, actor: Actor, 
 
 export interface SuggestionView {
   suggestion: SuggestionRow;
-  /** Live from Google for the latest answer only; earlier ones load on demand, to keep Google costs down. */
-  place: Place | null;
   onShortlist: boolean;
 }
 
@@ -137,6 +135,11 @@ export interface PlannerView {
   limits: { potRemainingToday: number; myRemainingToday: number };
 }
 
+/**
+ * The conversation. It never calls Google: the website polls it while the
+ * planner is busy, and each place lookup is billed. Place details come from
+ * getReplyPlaces, once per reply shown.
+ */
 export async function getPlanner(db: Db, deps: PlannerDeps, user: User, potId: string): Promise<PlannerView> {
   await authorizePot(db, user, potId, "pot.view");
   const rows = await db
@@ -159,20 +162,6 @@ export async function getPlanner(db: Db, deps: PlannerDeps, user: User, potId: s
     (await db.selectFrom("pot_venues").select("place_id").where("pot_id", "=", potId).where("removed_at", "is", null).where("place_id", "is not", null).execute()).map((v) => v.place_id),
   );
 
-  const latestReply = replyIds.at(-1);
-  const live = new Map<string, Place>();
-  if (deps.places && latestReply) {
-    const places = deps.places;
-    await Promise.all(
-      suggestions
-        .filter((s) => s.message_id === latestReply)
-        .map(async (s) => {
-          const p = await places.getPlace(s.place_id).catch(() => null);
-          if (p) live.set(s.id, p);
-        }),
-    );
-  }
-
   const since = new Date(Date.now() - DAY_MS);
   const [potCount, myCount] = await Promise.all([
     db.selectFrom("planner_requests").select((eb) => eb.fn.countAll<number>().as("n")).where("pot_id", "=", potId).where("created_at", ">", since).executeTakeFirstOrThrow(),
@@ -187,13 +176,29 @@ export async function getPlanner(db: Db, deps: PlannerDeps, user: User, potId: s
       authorName: author_name,
       suggestions: suggestions
         .filter((s) => s.message_id === message.id)
-        .map((s) => ({ suggestion: s, place: live.get(s.id) ?? null, onShortlist: shortlisted.has(s.place_id) })),
+        .map((s) => ({ suggestion: s, onShortlist: shortlisted.has(s.place_id) })),
     })),
     limits: {
       potRemainingToday: Math.max(0, deps.config.PLANNER_POT_DAILY_LIMIT - Number(potCount.n)),
       myRemainingToday: Math.max(0, deps.config.PLANNER_USER_DAILY_LIMIT - Number(myCount.n)),
     },
   };
+}
+
+/**
+ * Live Google details for one answer's suggestions, fetched when the answer is
+ * shown. Only place IDs are stored (AI-10), so this always asks Google; a
+ * place Google can't return just now comes back as null.
+ */
+export async function getReplyPlaces(db: Db, places: PlacesClient | null, user: User, potId: string, replyId: string) {
+  await authorizePot(db, user, potId, "pot.view");
+  const reply = await db.selectFrom("planner_messages").select("id").where("id", "=", replyId).where("pot_id", "=", potId).where("role", "=", "assistant").executeTakeFirst();
+  if (!reply) throw notFound("Answer not found");
+  if (!places) throw placesUnavailable();
+  const suggestions = await db.selectFrom("planner_suggestions").select(["id", "place_id"]).where("message_id", "=", replyId).orderBy("position").execute();
+  return Promise.all(
+    suggestions.map(async (s) => ({ suggestionId: s.id, placeId: s.place_id, place: await places.getPlace(s.place_id).catch((): Place | null => null) })),
+  );
 }
 
 /** Any member can put a suggestion to the vote (AI-05). Its cost stays labelled an estimate (AI-03). */

@@ -2,7 +2,7 @@ import type { FastifyRequest } from "fastify";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { requireUser } from "../auth/plugin.js";
-import { addSuggestionToVote, askPlanner, getPlanner, MAX_QUESTION_LENGTH, regenerateAnswer, type PlannerDeps, type SuggestionView } from "../planner/service.js";
+import { addSuggestionToVote, askPlanner, getPlanner, getReplyPlaces, MAX_QUESTION_LENGTH, regenerateAnswer, type PlannerDeps, type SuggestionView } from "../planner/service.js";
 import type { Actor } from "../pots/service.js";
 import { placeSchema, toPlace } from "./venues.js";
 
@@ -12,9 +12,8 @@ const potParams = z.object({ potId: z.string().max(64) });
 
 const suggestionSchema = z.object({
   id: z.uuid(),
+  /** Names, photos and the rest come from GET …/planner/replies/:replyId/places, once per answer shown. */
   placeId: z.string(),
-  /** Live details for the latest answer; for older ones, load GET /pots/:potId/places/:placeId when shown. */
-  place: placeSchema.nullable(),
   why: z.string(),
   /** Per person, in kobo. Always an estimate: show it labelled as one (AI-03). */
   costEstimateKobo: z.number().int().nullable(),
@@ -40,7 +39,6 @@ const messageSchema = z.object({
 const toSuggestion = (s: SuggestionView): z.infer<typeof suggestionSchema> => ({
   id: s.suggestion.id,
   placeId: s.suggestion.place_id,
-  place: s.place ? toPlace(s.place) : null,
   why: s.suggestion.why,
   costEstimateKobo: s.suggestion.cost_estimate_kobo,
   costIsEstimate: true,
@@ -59,7 +57,7 @@ export const plannerRoutes: FastifyPluginAsyncZod = async (app) => {
     {
       ...auth,
       schema: {
-        ...doc("The pot's conversation with the planner. Poll while busy: answers arrive in the background."),
+        ...doc("The pot's conversation with the planner. Poll while busy: answers arrive in the background. Never calls Google, so polling is free."),
         params: potParams,
         response: {
           200: z.object({
@@ -87,6 +85,35 @@ export const plannerRoutes: FastifyPluginAsyncZod = async (app) => {
           suggestions: m.suggestions.map(toSuggestion),
         })),
       };
+    },
+  );
+
+  app.get(
+    "/pots/:potId/planner/replies/:replyId/places",
+    {
+      ...auth,
+      // Each call is up to five billed Google lookups.
+      config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+      schema: {
+        ...doc("Live Google Maps details for one answer's suggestions. Load once when the answer is shown, not on every poll."),
+        params: potParams.extend({ replyId: z.uuid() }),
+        response: {
+          200: z.object({
+            places: z.array(
+              z.object({
+                suggestionId: z.uuid(),
+                placeId: z.string(),
+                /** Null when Google couldn't return it just now. */
+                place: placeSchema.nullable(),
+              }),
+            ),
+          }),
+        },
+      },
+    },
+    async (req) => {
+      const rows = await getReplyPlaces(app.db, app.places, requireUser(req), req.params.potId, req.params.replyId);
+      return { places: rows.map((r) => ({ ...r, place: r.place ? toPlace(r.place) : null })) };
     },
   );
 

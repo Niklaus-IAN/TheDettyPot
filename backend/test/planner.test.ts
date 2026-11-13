@@ -25,6 +25,8 @@ beforeEach(async () => {
   claude.reset();
   places.down = false;
   places.searches = [];
+  places.lookups = [];
+  places.failing.clear();
 });
 
 const h = apiFor(() => t);
@@ -89,7 +91,6 @@ describe("asking the planner (AI-01, AI-02, AI-05)", () => {
     expect(reply.suggestions).toHaveLength(2);
     expect(reply.suggestions[0]).toMatchObject({
       placeId: "koko",
-      place: { name: "Koko Beach Resort", attribution: "Google Maps" },
       why: "Room for eight on the sand",
       costEstimateKobo: naira(15_000),
       costIsEstimate: true,
@@ -204,6 +205,77 @@ describe("asking the planner (AI-01, AI-02, AI-05)", () => {
     await askAndAnswer(member, pot.id, search("a1", "b2", "c3", "d4", "e5"), share("Done"));
     expect(places.searches).toEqual(["a1", "b2", "c3", "d4"]);
     expect(JSON.stringify(claude.calls[1]!.messages.at(-1))).toContain("search limit");
+  });
+});
+
+// ─────────────────────────────────────────────
+describe("place details, and what they cost on Google", () => {
+  const placesOf = (who: Person, potId: string, replyId: string) => h.call(who, "GET", `/pots/${potId}/planner/replies/${replyId}/places`);
+
+  it("never calls Google while the conversation is polled; an answer's details load once, when shown", async () => {
+    const { pot, member } = await scene();
+    claude.will(search("beach"), share("Two spots", [{ place_id: "koko" }, { place_id: "tarkwa" }]));
+    await ask(member, pot.id);
+    for (let i = 0; i < 3; i++) expect((await view(member, pot.id)).busy).toBe(true);
+    await work();
+    let v;
+    for (let i = 0; i < 3; i++) v = await view(member, pot.id);
+    expect(places.lookups).toEqual([]);
+
+    const reply = v.messages[1];
+    expect(reply.suggestions[0]).not.toHaveProperty("place");
+    const res = await placesOf(member, pot.id, reply.id);
+    expect(res.statusCode).toBe(200);
+    expect(res.json().places).toEqual([
+      { suggestionId: reply.suggestions[0].id, placeId: "koko", place: expect.objectContaining({ name: "Koko Beach Resort", attribution: "Google Maps" }) },
+      { suggestionId: reply.suggestions[1].id, placeId: "tarkwa", place: expect.objectContaining({ name: "Tarkwa Bay Beach" }) },
+    ]);
+    expect(places.lookups.sort()).toEqual(["koko", "tarkwa"]);
+  });
+
+  it("works for older answers too, and a place Google can't return just now comes back empty", async () => {
+    const { pot, member } = await scene();
+    const first = (await askAndAnswer(member, pot.id, search("beach"), share("One", [{ place_id: "koko" }, { place_id: "tarkwa" }]))).messages[1];
+    await askAndAnswer(member, pot.id, share("No ideas this time"));
+
+    places.failing.add("tarkwa");
+    const res = await placesOf(member, pot.id, first.id);
+    expect(res.statusCode).toBe(200);
+    expect(res.json().places.map((p: { placeId: string; place: { name: string } | null }) => [p.placeId, p.place?.name ?? null])).toEqual([
+      ["koko", "Koko Beach Resort"],
+      ["tarkwa", null],
+    ]);
+  });
+
+  it("is for the pot's members, and only for the pot's own answers", async () => {
+    const { pot, member } = await scene();
+    const [question, reply] = (await askAndAnswer(member, pot.id, search("beach"), share("One", [{ place_id: "koko" }]))).messages;
+    const stranger = await h.signIn();
+    const other = await scene();
+    expect((await placesOf(stranger, pot.id, reply.id)).statusCode).toBe(404);
+    expect((await placesOf(other.member, other.pot.id, reply.id)).statusCode).toBe(404); // another pot's answer
+    expect((await placesOf(member, pot.id, question.id)).statusCode).toBe(404); // a question, not an answer
+    expect(places.lookups).toEqual([]);
+  });
+
+  it("answers 503 when Google isn't configured", async () => {
+    const bare = await makeTestApp({}, {});
+    try {
+      const b = apiFor(() => bare);
+      const organiser = await b.signIn();
+      const pot = await b.createPot(organiser);
+      const question = await bare.db
+        .insertInto("planner_messages")
+        .values({ pot_id: pot.id, role: "user", author_id: organiser.id, content: "Somewhere fun", status: "answered" })
+        .returning("id")
+        .executeTakeFirstOrThrow();
+      const reply = await bare.db.insertInto("planner_messages").values({ pot_id: pot.id, role: "assistant", reply_to: question.id, content: "Hi" }).returning("id").executeTakeFirstOrThrow();
+      const res = await b.call(organiser, "GET", `/pots/${pot.id}/planner/replies/${reply.id}/places`);
+      expect(res.statusCode).toBe(503);
+      expect(res.json().error.code).toBe("PLACES_UNAVAILABLE");
+    } finally {
+      await bare.close();
+    }
   });
 });
 
@@ -488,11 +560,15 @@ describe("logging and cost (AI-11)", () => {
   it("adds up for the team in the support console", async () => {
     const { pot, member } = await scene();
     await askAndAnswer(member, pot.id, share("Here"));
+    const logged = await t.db.selectFrom("ai_calls").select("cost_nano_usd").where("pot_id", "=", pot.id).executeTakeFirstOrThrow();
+    expect(Number(logged.cost_nano_usd)).toBe(8_000_000); // $0.008
+    // Other tests' pots share this database, so make this one the costliest: the report lists the top 20.
+    await t.db.updateTable("ai_calls").set({ cost_nano_usd: 1_000_000_000_000 }).where("pot_id", "=", pot.id).execute();
     const admin = await h.signIn();
     await t.db.updateTable("users").set({ is_admin: true }).where("id", "=", admin.id).execute();
     const report = (await h.call(admin, "GET", "/admin/ai-usage?days=1")).json();
     expect(report.byModel).toEqual(expect.arrayContaining([expect.objectContaining({ purpose: "plan", model: "claude-opus-5-5" })]));
-    expect(report.topPots).toEqual(expect.arrayContaining([{ potId: pot.id, name: "Lekki beach day", calls: 1, usd: 0.008 }]));
+    expect(report.topPots[0]).toEqual({ potId: pot.id, name: "Lekki beach day", calls: 1, usd: 1000 });
     expect(report.totalUsd).toBeGreaterThan(0);
     expect((await h.call(member, "GET", "/admin/ai-usage")).statusCode).toBe(404);
   });
