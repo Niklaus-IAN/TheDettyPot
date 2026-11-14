@@ -2,7 +2,7 @@ import { CfnOutput, Duration, RemovalPolicy, Stack, type StackProps } from "aws-
 import * as ecr from "aws-cdk-lib/aws-ecr";
 import * as iam from "aws-cdk-lib/aws-iam";
 import type { Construct } from "constructs";
-import { DEPLOY_BRANCH, GITHUB_REPO, IMAGE_REPOSITORY } from "./environments.js";
+import { DEPLOY_BRANCH, GITHUB_REPO, GITHUB_SUBJECT_PREFIX, IMAGE_REPOSITORY } from "./environments.js";
 
 /**
  * What every environment shares: the backend image repository, and the role
@@ -38,7 +38,7 @@ export class SharedStack extends Stack {
         StringEquals: {
           "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
           // Only pushes to main in this repository: not forks, other branches or pull requests.
-          "token.actions.githubusercontent.com:sub": `repo:${GITHUB_REPO}:ref:refs/heads/${DEPLOY_BRANCH}`,
+          "token.actions.githubusercontent.com:sub": `${GITHUB_SUBJECT_PREFIX}:ref:refs/heads/${DEPLOY_BRANCH}`,
         },
       }),
     });
