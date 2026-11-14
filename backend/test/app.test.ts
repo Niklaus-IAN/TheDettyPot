@@ -59,6 +59,16 @@ describe("request handling", () => {
     }
   });
 
+  it("answers preflights the way API Gateway forwards them: chunked, with no content type", async () => {
+    const res = await t.app.inject({
+      method: "OPTIONS",
+      url: "/me",
+      headers: { origin: "https://dettypot.vercel.app", "access-control-request-method": "GET", "transfer-encoding": "chunked" },
+      payload: "",
+    });
+    expect(res.statusCode).toBe(204);
+  });
+
   it("returns a consistent JSON body for unknown routes", async () => {
     const res = await t.app.inject({ method: "GET", url: "/nope" });
     expect(res.statusCode).toBe(404);

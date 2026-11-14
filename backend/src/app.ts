@@ -185,7 +185,9 @@ export async function buildApp({ config, db, tokenVerifier, paystack, places, cl
 
   // CORS preflights. API Gateway adds the CORS headers (only for the website's
   // origins) but passes the OPTIONS request on; browsers need a 2xx answer.
-  app.options("/*", { schema: { hide: true } }, async (_req, reply) => reply.code(204).send());
+  // It forwards them chunked with no content type, so they're answered in
+  // onRequest, before any body is read (reading it would refuse it with 415).
+  app.options("/*", { schema: { hide: true }, onRequest: async (_req, reply) => reply.code(204).send() }, async (_req, reply) => reply.code(204).send());
 
   await app.register(healthRoutes);
   await app.register(meRoutes);
