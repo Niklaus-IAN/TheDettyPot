@@ -6,11 +6,11 @@ import { AppError, badRequest, conflict, notFound } from "../errors.js";
 import { ensureAccount, post } from "../ledger/service.js";
 import { naira } from "../notifications/catalog.js";
 import { notifyUser } from "../notifications/service.js";
-import { PaystackError, type PaystackClient, type RefundResult } from "../payments/paystack.js";
+import { isRefusal, type PaystackClient, type RefundResult } from "../payments/paystack.js";
 import { paidByMember } from "../pots/money.js";
 import { authorizePot } from "../auth/pot-access.js";
 import { lockPot, type Actor } from "../pots/service.js";
-import { listBanks } from "../payouts/service.js";
+import { accountLookupError, listBanks } from "../payouts/service.js";
 
 export type RefundRow = Selectable<Database["refunds"]>;
 export type RefundReason = "pot_cancelled" | "member_left" | "member_removed" | "leftover";
@@ -201,7 +201,7 @@ export async function requestRefund(db: Db, paystack: PaystackClient, refundId: 
       merchantNote: merchantNote(refundId),
     });
   } catch (err) {
-    if (err instanceof PaystackError && err.httpStatus !== null && err.httpStatus < 500) {
+    if (isRefusal(err)) {
       await db.transaction().execute((trx) => failRefund(trx, refundId, `Paystack refused the refund: ${err.message}`));
       return "failed";
     }
@@ -375,8 +375,8 @@ export async function provideRefundAccount(
   let accountName: string;
   try {
     accountName = (await paystack.resolveAccount(input.accountNumber, input.bankCode)).accountName;
-  } catch {
-    throw badRequest("ACCOUNT_NOT_FOUND", "We couldn't find that account. Check the bank and account number.");
+  } catch (err) {
+    throw accountLookupError(err);
   }
   const result = await paystack.retryRefundWithAccount(Number(refund.provider_refund_id), { accountNumber: input.accountNumber, bankId: bank.id });
   await db

@@ -18,6 +18,8 @@ afterAll(async () => {
 });
 beforeEach(() => {
   paystack.transferMode = "pending";
+  paystack.resolveRateLimited = false;
+  paystack.recipientMode = "ok";
   paystack.verifyOutages = 0;
   clearBankCache();
 });
@@ -80,6 +82,33 @@ describe("bank accounts", () => {
     expect(res.json()).toMatchObject({ accountName: "KOKO BEACH RESORT LTD", bankName: "Guaranty Trust Bank" });
     const missing = await h.call(organiser, "POST", `/pots/${pot.id}/payouts/resolve-account`, { bankCode: "058", accountNumber: "1111111111" });
     expect(missing.json().error.code).toBe("ACCOUNT_NOT_FOUND");
+  });
+
+  it("says the provider is busy, not that the account doesn't exist, when Paystack asks us to slow down", async () => {
+    const { pot, organiser } = await fundedPot();
+    paystack.resolveRateLimited = true;
+    for (const res of [
+      await h.call(organiser, "POST", `/pots/${pot.id}/payouts/resolve-account`, venue),
+      await h.call(organiser, "POST", `/pots/${pot.id}/payouts`, { ...venue, amountKobo: naira(1_000) }),
+    ]) {
+      expect(res.statusCode).toBe(502);
+      expect(res.json().error.code).toBe("PAYMENT_PROVIDER_ERROR");
+    }
+    expect(await t.db.selectFrom("payouts").select("id").where("pot_id", "=", pot.id).execute()).toEqual([]);
+  });
+
+  it("explains when Paystack won't pay an account, and says try again when it's only busy", async () => {
+    const { pot, organiser } = await fundedPot();
+    paystack.recipientMode = "refuse";
+    const refused = await h.call(organiser, "POST", `/pots/${pot.id}/payouts`, { ...venue, amountKobo: naira(1_000) });
+    expect(refused.statusCode).toBe(400);
+    expect(refused.json().error.code).toBe("ACCOUNT_NOT_PAYABLE");
+    paystack.recipientMode = "rate_limited";
+    const busy = await h.call(organiser, "POST", `/pots/${pot.id}/payouts`, { ...venue, amountKobo: naira(1_000) });
+    expect(busy.statusCode).toBe(502);
+    expect(busy.json().error.code).toBe("PAYMENT_PROVIDER_ERROR");
+    expect(await t.db.selectFrom("payouts").select("id").where("pot_id", "=", pot.id).execute()).toEqual([]);
+    expect((await ledger(organiser, pot.id)).reservedKobo).toBe(0);
   });
 
   it("can't be given a name: there is no field for one", async () => {
@@ -286,6 +315,25 @@ describe("sending and results (MON-12)", () => {
     const row = await payoutRow(p.id);
     expect(row.status).toBe("sending");
     expect(paystack.transfers.has(row.reference)).toBe(true);
+  });
+
+  it("treats 'slow down' as try again, not as a refusal: the payout is sent once Paystack is ready", async () => {
+    const s = await fundedPot();
+    await knownAccount(s.organiser, s.pot.id);
+    paystack.transferMode = "rate_limited";
+    const p = (await requestPayout(s.organiser, s.pot.id, naira(20_000))).json();
+    expect((await payoutRow(p.id)).status).toBe("sending"); // not failed
+    expect((await ledger(s.organiser, s.pot.id)).reservedKobo).toBe(naira(20_000));
+
+    paystack.transferMode = "pending";
+    await t.db.updateTable("payouts").set({ sent_at: new Date(Date.now() - 11 * 60_000) }).where("id", "=", p.id).execute();
+    await progressPayouts(t.db, paystack); // Paystack never got it: back in line
+    await progressPayouts(t.db, paystack); // sent
+    const row = await payoutRow(p.id);
+    expect(row.status).toBe("sending");
+    expect(paystack.transfers.has(row.reference)).toBe(true);
+    await sendWebhook(paystack.finishTransfer(row.reference, "success"));
+    expect((await payoutRow(p.id)).status).toBe("succeeded");
   });
 
   it("stops for a person when Paystack asks for an OTP, and settles if it later goes through", async () => {

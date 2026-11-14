@@ -2,7 +2,7 @@ import { createHmac } from "node:crypto";
 import { createServer, type IncomingMessage, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { HttpPaystackClient, isValidPaystackSignature, PaystackError } from "../src/payments/paystack.js";
+import { HttpPaystackClient, isRefusal, isValidPaystackSignature, PaystackError } from "../src/payments/paystack.js";
 
 /** A stand-in for api.paystack.co that records requests and answers per Paystack's API spec. */
 let server: Server;
@@ -95,6 +95,14 @@ describe("HttpPaystackClient", () => {
   it("reports an unreachable Paystack without a status code", async () => {
     const down = new HttpPaystackClient("sk_test_abc", "http://127.0.0.1:1");
     await expect(down.verifyTransaction("r")).rejects.toMatchObject({ httpStatus: null });
+  });
+});
+
+describe("isRefusal", () => {
+  it("counts only a definite no: not 'slow down' and not silence", () => {
+    expect([400, 404, 422].map((code) => isRefusal(new PaystackError("no", code)))).toEqual([true, true, true]);
+    expect([429, 500, 503, null].map((code) => isRefusal(new PaystackError("later", code)))).toEqual([false, false, false, false]);
+    expect(isRefusal(new Error("not Paystack"))).toBe(false);
   });
 });
 

@@ -11,7 +11,7 @@ import { notifyPotMembers, notifyUser } from "../notifications/service.js";
 import { paidByMember, totalRaised } from "../pots/money.js";
 import { lockPot, type Actor } from "../pots/service.js";
 import { newReference } from "../payments/service.js";
-import { PaystackError, TRANSFER_FAILED_STATUSES, type Bank, type PaystackClient, type TransferResult } from "../payments/paystack.js";
+import { isRefusal, PaystackError, TRANSFER_FAILED_STATUSES, type Bank, type PaystackClient, type TransferResult } from "../payments/paystack.js";
 
 export type PayoutRow = Selectable<Database["payouts"]>;
 
@@ -49,6 +49,12 @@ export async function listBanks(paystack: PaystackClient | null): Promise<Bank[]
 /** For tests: forget the cached bank list. */
 export const clearBankCache = () => (bankCache = null);
 
+/** A failed account lookup: "not found" only when Paystack says so; otherwise try again. */
+export const accountLookupError = (err: unknown) =>
+  isRefusal(err)
+    ? badRequest("ACCOUNT_NOT_FOUND", "We couldn't find that account. Check the bank and account number.")
+    : new AppError(502, "PAYMENT_PROVIDER_ERROR", "We couldn't check that account right now. Please try again.");
+
 async function bankName(paystack: PaystackClient, code: string): Promise<string> {
   const bank = (await listBanks(paystack)).find((b) => b.code === code);
   if (!bank) throw badRequest("UNKNOWN_BANK", "That bank isn't on the list");
@@ -70,10 +76,7 @@ export async function resolvePayoutAccount(
     const resolved = await paystack.resolveAccount(input.accountNumber, input.bankCode);
     return { bankCode: input.bankCode, bankName: bank, accountNumber: resolved.accountNumber, accountName: resolved.accountName };
   } catch (err) {
-    if (err instanceof PaystackError && err.httpStatus !== null && err.httpStatus < 500) {
-      throw badRequest("ACCOUNT_NOT_FOUND", "We couldn't find that account. Check the bank and account number.");
-    }
-    throw new AppError(502, "PAYMENT_PROVIDER_ERROR", "We couldn't check that account right now. Please try again.");
+    throw accountLookupError(err);
   }
 }
 
@@ -120,11 +123,13 @@ export async function requestPayout(
     .where("account_number", "=", account.accountNumber)
     .executeTakeFirst();
   if (!saved || saved.account_name !== account.accountName || !saved.provider_recipient_code) {
-    const recipientCode = await paystack.createTransferRecipient({
-      name: account.accountName,
-      accountNumber: account.accountNumber,
-      bankCode: account.bankCode,
-    });
+    const recipientCode = await paystack
+      .createTransferRecipient({ name: account.accountName, accountNumber: account.accountNumber, bankCode: account.bankCode })
+      .catch((err: unknown) => {
+        throw isRefusal(err)
+          ? badRequest("ACCOUNT_NOT_PAYABLE", "Paystack can't send money to that account. Check the details, or use another account.")
+          : new AppError(502, "PAYMENT_PROVIDER_ERROR", "We couldn't reach the payment provider. Please try again.");
+      });
     saved = await db
       .insertInto("bank_accounts")
       .values({
@@ -382,7 +387,7 @@ export async function sendPayout(db: Db, paystack: PaystackClient, payoutId: str
   } catch (err) {
     // A clear refusal (e.g. not enough balance) means no transfer exists: release.
     // No answer at all means we don't know: leave it sending and check later.
-    if (err instanceof PaystackError && err.httpStatus !== null && err.httpStatus < 500) {
+    if (isRefusal(err)) {
       await db.transaction().execute(async (trx) => {
         const locked = await trx.selectFrom("payouts").selectAll().where("id", "=", payoutId).forUpdate().executeTakeFirstOrThrow();
         if (locked.status !== "sending") return;
