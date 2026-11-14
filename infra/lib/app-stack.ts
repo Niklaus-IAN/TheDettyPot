@@ -19,6 +19,8 @@ export interface AppStackProps extends StackProps {
 }
 
 const API_PORT = 3000;
+/** Set by API Gateway to the caller's address, overwriting anything the caller sent. */
+const CLIENT_IP_HEADER = "x-client-ip";
 
 /**
  * One DettyPot environment: the API and the worker on Fargate, Postgres on
@@ -117,8 +119,8 @@ export class AppStack extends Stack {
       LOG_LEVEL: "info",
       WEB_BASE_URL: settings.webBaseUrl,
       ENABLE_DOCS: String(settings.enableDocs),
-      // API Gateway is the one proxy in front of the API.
-      TRUST_PROXY_HOPS: "1",
+      // API Gateway's connection isn't the caller's: it puts the caller's address here (see the integration below).
+      CLIENT_IP_HEADER: CLIENT_IP_HEADER,
       AUTH_ISSUER: users.userPoolProviderUrl,
       AUTH_AUDIENCE: webClient.userPoolClientId,
       APP_SECRET_ID: `dettypot/${env}/app`,
@@ -193,7 +195,11 @@ export class AppStack extends Stack {
     const vpcLink = new apigwv2.VpcLink(this, "VpcLink", { vpc, subnets: { subnetType: ec2.SubnetType.PUBLIC }, securityGroups: [linkSg] });
     const httpApi = new apigwv2.HttpApi(this, "HttpApi", {
       apiName: `dettypot-${env}`,
-      defaultIntegration: new HttpServiceDiscoveryIntegration("Api", apiService.cloudMapService!, { vpcLink }),
+      defaultIntegration: new HttpServiceDiscoveryIntegration("Api", apiService.cloudMapService!, {
+        vpcLink,
+        // X-Forwarded-For and Forwarded can't be set here (API Gateway reserves them), so it passes the caller's address in its own header.
+        parameterMapping: new apigwv2.ParameterMapping().overwriteHeader(CLIENT_IP_HEADER, apigwv2.MappingValue.contextVariable("identity.sourceIp")),
+      }),
       corsPreflight: {
         allowOrigins: origins,
         allowMethods: [apigwv2.CorsHttpMethod.ANY],

@@ -47,6 +47,12 @@ describe("network and cost", () => {
     expect(into(db).sort()).toEqual([[api, 5432], [worker, 5432]].sort());
   });
 
+  it("tells the API the caller's address in a header the caller can't set", () => {
+    dev.hasResourceProperties("AWS::ApiGatewayV2::Integration", {
+      RequestParameters: { "overwrite:header.x-client-ip": "$context.identity.sourceIp" },
+    });
+  });
+
   it("caps traffic at the gateway", () => {
     dev.hasResourceProperties("AWS::ApiGatewayV2::Stage", { DefaultRouteSettings: { ThrottlingBurstLimit: 100, ThrottlingRateLimit: 50 } });
   });
@@ -96,7 +102,10 @@ describe("containers", () => {
     for (const t of tasks()) {
       for (const c of t.ContainerDefinitions) {
         const vars = Object.fromEntries(c.Environment.map((e: { Name: string; Value: unknown }) => [e.Name, e.Value]));
-        expect(vars).toMatchObject({ APP_ENV: "dev", TRUST_PROXY_HOPS: "1", APP_SECRET_ID: "dettypot/dev/app", WEB_BASE_URL: "https://dettypot.vercel.app" });
+        expect(vars).toMatchObject({ APP_ENV: "dev", CLIENT_IP_HEADER: "x-client-ip", APP_SECRET_ID: "dettypot/dev/app", WEB_BASE_URL: "https://dettypot.vercel.app" });
+        // The connection comes from API Gateway, so no forwarded address is trusted.
+        expect(vars.TRUST_PROXY).toBeUndefined();
+        expect(vars.TRUST_PROXY_HOPS).toBeUndefined();
         expect(vars.DATABASE_SECRET_ID).toBeDefined();
         for (const name of ["PAYSTACK_SECRET_KEY", "GOOGLE_MAPS_API_KEY", "ANTHROPIC_API_KEY", "DATABASE_URL", "AUTH_DEV_JWKS_FILE"]) expect(vars[name]).toBeUndefined();
         expect(JSON.stringify(c)).not.toMatch(/sk_(test|live)_|sk-ant-|AIza/);

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import Fastify, { type FastifyError, type FastifyInstance } from "fastify";
+import { isIP } from "node:net";
+import Fastify, { type FastifyError, type FastifyInstance, type FastifyRequest } from "fastify";
 import rateLimit from "@fastify/rate-limit";
 import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
@@ -59,10 +60,31 @@ export interface AppDeps {
 // is a harmless token; otherwise generate one.
 const SAFE_REQUEST_ID = /^[A-Za-z0-9_-]{8,64}$/;
 
+/**
+ * The caller's address. Behind API Gateway, from the header it sets
+ * (CLIENT_IP_HEADER), since the connection itself comes from API Gateway;
+ * otherwise from the connection, or X-Forwarded-For if a proxy is trusted.
+ */
+export function clientIp(req: FastifyRequest, header: string | undefined): string {
+  if (header) {
+    const value = req.headers[header];
+    if (typeof value === "string" && isIP(value.trim())) return value.trim();
+  }
+  return req.ip;
+}
+
 function loggerOptions(config: Config) {
   const base = {
     level: config.LOG_LEVEL,
     redact: ["req.headers.authorization", "req.headers.cookie", "req.headers['x-paystack-signature']"],
+    serializers: {
+      req: (req: FastifyRequest) => ({
+        method: req.method,
+        url: req.url,
+        host: req.host,
+        remoteAddress: clientIp(req, config.CLIENT_IP_HEADER),
+      }),
+    },
   };
   if (config.APP_ENV === "local") {
     return { ...base, transport: { target: "pino-pretty", options: { colorize: true, translateTime: "HH:MM:ss" } } };
@@ -147,18 +169,23 @@ export async function buildApp({ config, db, tokenVerifier, paystack, places, cl
   }
 
   // Per-IP limits (NFR-03): a generous default, tighter on public and
-  // sensitive routes. The store is per process; with several instances in AWS
-  // the load balancer's limits sit in front of this.
+  // sensitive routes. The store is per process; in AWS, API Gateway also caps
+  // total traffic in front of this.
   if (config.RATE_LIMIT_ENABLED) {
     await app.register(rateLimit, {
       max: 300,
       timeWindow: "1 minute",
+      keyGenerator: (req) => clientIp(req, config.CLIENT_IP_HEADER),
       errorResponseBuilder: (_req, ctx) =>
         new AppError(429, "RATE_LIMITED", `Too many requests. Try again in ${ctx.after}.`),
     });
   }
 
   installAuth(app, tokenVerifier ?? tokenVerifierFromConfig(config));
+
+  // CORS preflights. API Gateway adds the CORS headers (only for the website's
+  // origins) but passes the OPTIONS request on; browsers need a 2xx answer.
+  app.options("/*", { schema: { hide: true } }, async (_req, reply) => reply.code(204).send());
 
   await app.register(healthRoutes);
   await app.register(meRoutes);
