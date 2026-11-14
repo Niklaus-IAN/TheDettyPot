@@ -1,7 +1,9 @@
 import { buildApp } from "./app.js";
 import { loadConfig } from "./config.js";
 import { createDb } from "./db/index.js";
+import { loadAwsSecrets } from "./secrets.js";
 
+await loadAwsSecrets();
 const config = loadConfig();
 const db = createDb(config.DATABASE_URL);
 const app = await buildApp({ config, db });

@@ -13,6 +13,7 @@ member can see where their money went.
 |---|---|
 | [`backend/`](backend/) | The API: TypeScript, Fastify, Postgres. Owns every pot, member and naira. |
 | [`web/`](web/) | The website. For now, the waitlist page; emails go to a Google Sheet. |
+| [`infra/`](infra/) | AWS, as code (CDK): the dev environment, its costs, and how it deploys. |
 | [`docs/`](docs/) | How the project is run, starting with [environments and shipping](docs/environments.md). |
 
 The website and the WhatsApp assistant will talk only to the backend API;
@@ -61,7 +62,14 @@ Early build. Done so far:
 - Venues: Google Places search, a shortlist with live details, voting, the
   organiser's pick, and a date poll.
 
-Next: the AI planner and the brochure, then deployment to AWS.
+- The AI planner: real places from Google, labelled estimates and guidance,
+  daily limits, and every call's cost logged.
+
+- AWS dev environment: API and worker on Fargate, Postgres on RDS, Cognito
+  sign-in, an HTTPS address from API Gateway, and a deploy on every merge.
+
+Next: Google sign-in, magic links and email (SES), staging and prod, then the
+brochure.
 
 ## Getting started
 

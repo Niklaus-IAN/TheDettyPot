@@ -352,6 +352,24 @@ These hold even if application code has a bug:
 `local`, `test`, `dev`, `staging`, `prod`, set with `APP_ENV`. See
 [docs/environments.md](../docs/environments.md) for how code ships through them.
 
+### Running in AWS
+
+One image ([Dockerfile](Dockerfile)) runs the API (`node dist/index.js`, the
+default), the worker (`node dist/worker.js`) and migrations
+(`node dist/db/migrate.js`). It's built in CI; you don't need Docker locally.
+[infra/](../infra/) describes the AWS side.
+
+Settings that only matter there:
+
+| Setting | What it does |
+|---|---|
+| `APP_SECRET_ID` | A Secrets Manager secret of JSON keys (`PAYSTACK_SECRET_KEY`, `GOOGLE_MAPS_API_KEY`, `ANTHROPIC_API_KEY`), read at startup. A key already in the environment wins. |
+| `DATABASE_SECRET_ID` | The RDS secret; becomes `DATABASE_URL` with TLS verified (`sslmode=verify-full`, against the RDS certificates in the image). |
+| `TRUST_PROXY_HOPS` | How many proxies sit in front (API Gateway: 1). Only their addresses are trusted, so callers can't fake theirs. |
+
+Sign-in tokens are Cognito **ID tokens**: the API checks the issuer, that the
+audience is the web client, and reads the email and whether it's confirmed.
+
 ## Conventions
 
 - Errors always return `{ "error": { "code", "message", "requestId" } }`.

@@ -1,0 +1,26 @@
+name: infra
+
+on:
+  push:
+    paths: ["infra/**", ".github/workflows/infra.yml"]
+  pull_request:
+    paths: ["infra/**", ".github/workflows/infra.yml"]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: infra/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      # Builds the CloudFormation templates and runs CDK's template checks; needs no AWS access.
+      - run: npm run synth

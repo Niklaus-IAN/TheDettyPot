@@ -43,6 +43,10 @@ const configSchema = z
     PLANNER_USER_DAILY_LIMIT: z.coerce.number().int().min(1).max(1000).default(15),
     RATE_LIMIT_ENABLED: z.stringbool().default(true),
     TRUST_PROXY: z.stringbool().default(false),
+    // Behind exactly N proxies (API Gateway is 1), trust only the address the
+    // last N of them added: callers can't fake their address with a header.
+    // Takes precedence over TRUST_PROXY.
+    TRUST_PROXY_HOPS: z.coerce.number().int().min(1).max(5).optional(),
     // Sign-in tokens are issued by an OpenID Connect provider (Cognito or similar).
     AUTH_ISSUER: z.url(),
     AUTH_AUDIENCE: z.string().min(1),

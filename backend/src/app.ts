@@ -71,9 +71,11 @@ function loggerOptions(config: Config) {
 }
 
 export async function buildApp({ config, db, tokenVerifier, paystack, places, claude }: AppDeps): Promise<FastifyInstance> {
+  const hops = config.TRUST_PROXY_HOPS;
   const app = Fastify({
     logger: config.APP_ENV === "test" ? false : loggerOptions(config),
-    trustProxy: config.TRUST_PROXY,
+    // With hops set, only the last `hops` forwarders are trusted (hop 0 is the one that connected to us).
+    trustProxy: hops === undefined ? config.TRUST_PROXY : (_address: string, hop: number) => hop < hops,
     genReqId: (req) => {
       const incoming = req.headers["x-request-id"];
       return typeof incoming === "string" && SAFE_REQUEST_ID.test(incoming) ? incoming : randomUUID();
