@@ -149,7 +149,8 @@ describe("deploying from GitHub", () => {
     const condition = role.Properties.AssumeRolePolicyDocument.Statement[0].Condition;
     expect(condition.StringEquals).toEqual({
       "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-      "token.actions.githubusercontent.com:sub": "repo:Niklaus-IAN/TheDettyPot:ref:refs/heads/main",
+      // GitHub's immutable subject: owner and repository IDs, not just names.
+      "token.actions.githubusercontent.com:sub": "repo:Niklaus-IAN@105167056/TheDettyPot@1450539204:ref:refs/heads/main",
     });
     expect(condition.StringLike).toBeUndefined();
   });

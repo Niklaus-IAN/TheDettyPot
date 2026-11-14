@@ -4,6 +4,13 @@ export const REGION = "eu-west-1";
 /** The GitHub repository allowed to deploy, and the only branch it may deploy from. */
 export const GITHUB_REPO = "Niklaus-IAN/TheDettyPot";
 export const DEPLOY_BRANCH = "main";
+/**
+ * How GitHub names this repository in its sign-in tokens. The repository uses
+ * GitHub's immutable subjects, which carry the owner's and repository's IDs, so
+ * a renamed or re-created repository with the same name can't deploy. From
+ * `gh api repos/Niklaus-IAN/TheDettyPot/actions/oidc/customization/sub`.
+ */
+export const GITHUB_SUBJECT_PREFIX = "repo:Niklaus-IAN@105167056/TheDettyPot@1450539204";
 
 /** The backend image, shared by every environment. */
 export const IMAGE_REPOSITORY = "dettypot-backend";
