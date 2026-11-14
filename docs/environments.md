@@ -21,8 +21,9 @@ Each environment runs two processes from the same build: the **API** and the
 **worker** (reminders, deadline alerts, email delivery). In AWS both run as
 separate services; the worker can be scaled to more than one copy safely.
 Emails are only really sent where `EMAIL_PROVIDER` points at Amazon SES; locally
-they are written to the log. Behind API Gateway, `TRUST_PROXY_HOPS=1` so rate
-limits apply per caller and a caller can't fake their address with a header.
+they are written to the log. Behind API Gateway, the caller's address comes from the
+`x-client-ip` header it sets (`CLIENT_IP_HEADER`), so rate limits apply per
+caller and a caller can't fake their address.
 How AWS is set up, what it costs and how to deploy: [`infra/README.md`](../infra/README.md).
 
 Each deployed environment has its own AWS resources, its own secrets in AWS

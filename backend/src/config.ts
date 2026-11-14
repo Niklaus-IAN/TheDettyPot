@@ -47,6 +47,11 @@ const configSchema = z
     // last N of them added: callers can't fake their address with a header.
     // Takes precedence over TRUST_PROXY.
     TRUST_PROXY_HOPS: z.coerce.number().int().min(1).max(5).optional(),
+    // A header the proxy in front sets to the caller's address, overwriting
+    // anything the caller sent (API Gateway: x-client-ip). When set, rate
+    // limits and logs use it; a missing or malformed value falls back to the
+    // connection's address.
+    CLIENT_IP_HEADER: z.string().regex(/^[a-z0-9-]{1,64}$/, "must be a lower-case header name").optional(),
     // Sign-in tokens are issued by an OpenID Connect provider (Cognito or similar).
     AUTH_ISSUER: z.url(),
     AUTH_AUDIENCE: z.string().min(1),

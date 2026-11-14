@@ -51,6 +51,14 @@ describe("request handling", () => {
     expect(res.headers["x-request-id"]).not.toBe("bad id\twith spaces");
   });
 
+  it("answers CORS preflights with 204, without sign-in, on any path", async () => {
+    for (const url of ["/me", "/pots/abc/planner/messages", "/nowhere"]) {
+      const res = await t.app.inject({ method: "OPTIONS", url, headers: { origin: "https://dettypot.vercel.app", "access-control-request-method": "POST" } });
+      expect(res.statusCode).toBe(204);
+      expect(res.body).toBe("");
+    }
+  });
+
   it("returns a consistent JSON body for unknown routes", async () => {
     const res = await t.app.inject({ method: "GET", url: "/nope" });
     expect(res.statusCode).toBe(404);

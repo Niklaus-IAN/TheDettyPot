@@ -365,7 +365,8 @@ Settings that only matter there:
 |---|---|
 | `APP_SECRET_ID` | A Secrets Manager secret of JSON keys (`PAYSTACK_SECRET_KEY`, `GOOGLE_MAPS_API_KEY`, `ANTHROPIC_API_KEY`), read at startup. A key already in the environment wins. |
 | `DATABASE_SECRET_ID` | The RDS secret; becomes `DATABASE_URL` with TLS verified (`sslmode=verify-full`, against the RDS certificates in the image). |
-| `TRUST_PROXY_HOPS` | How many proxies sit in front (API Gateway: 1). Only their addresses are trusted, so callers can't fake theirs. |
+| `CLIENT_IP_HEADER` | The header the proxy in front sets to the caller's address (API Gateway: `x-client-ip`, overwritten on every request). Rate limits and logs use it; anything that isn't an IP address is ignored. |
+| `TRUST_PROXY_HOPS` | For proxies that send `X-Forwarded-For`: trust only the last N. Not used in AWS, where API Gateway doesn't send it. |
 
 Sign-in tokens are Cognito **ID tokens**: the API checks the issuer, that the
 audience is the web client, and reads the email and whether it's confirmed.

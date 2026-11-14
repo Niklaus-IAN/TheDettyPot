@@ -73,6 +73,31 @@ describe("rate limits", () => {
     }
   });
 
+  it("behind API Gateway, follow the address it puts in x-client-ip, whatever else the caller sends", async () => {
+    const behind = await makeTestApp({ RATE_LIMIT_ENABLED: "true", CLIENT_IP_HEADER: "x-client-ip" });
+    try {
+      let n = 0;
+      const send = (clientIp: string | undefined, i: number) =>
+        behind.app.inject({
+          method: "POST",
+          url: "/waitlist",
+          // A caller can send any X-Forwarded-For; API Gateway overwrites x-client-ip.
+          headers: { "x-forwarded-for": `10.9.9.${i}`, ...(clientIp && { "x-client-ip": clientIp }) },
+          payload: { email: `client-ip-${n++}@example.com` },
+        });
+      const statuses: number[] = [];
+      for (let i = 0; i < 6; i++) statuses.push((await send("203.0.113.50", i)).statusCode);
+      expect(statuses).toEqual([202, 202, 202, 202, 202, 429]);
+      expect((await send("2001:db8::7", 1)).statusCode).toBe(202); // someone else, IPv6
+      // Not an address: fall back to the connection rather than trusting it.
+      const junk: number[] = [];
+      for (let i = 0; i < 6; i++) junk.push((await send(`not-an-ip-${i}`, i)).statusCode);
+      expect(junk).toEqual([202, 202, 202, 202, 202, 429]);
+    } finally {
+      await behind.close();
+    }
+  });
+
   it("leave other routes under the general limit", async () => {
     const res = await t.app.inject({ method: "GET", url: "/health" });
     expect(res.statusCode).toBe(200);
