@@ -13,12 +13,14 @@ import { HttpPlacesClient } from "./places/client.js";
 import { AnthropicClaudeClient } from "./planner/claude.js";
 import { answerPendingQuestions } from "./planner/service.js";
 import { closeDueRollovers } from "./rollovers/service.js";
+import { loadAwsSecrets } from "./secrets.js";
 import { deliverEmails, sendDeadlinePassedAlerts, sendDeadlineWarnings, sendPaymentReminders } from "./worker/tasks.js";
 
 /**
  * The background worker: runs alongside the API (a separate process in AWS).
  * Every job is safe to run on several workers at once.
  */
+await loadAwsSecrets();
 const config = loadConfig();
 const log = pino({
   level: config.LOG_LEVEL,

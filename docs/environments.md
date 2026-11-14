@@ -21,8 +21,9 @@ Each environment runs two processes from the same build: the **API** and the
 **worker** (reminders, deadline alerts, email delivery). In AWS both run as
 separate services; the worker can be scaled to more than one copy safely.
 Emails are only really sent where `EMAIL_PROVIDER` points at Amazon SES; locally
-they are written to the log. Behind the load balancer, `TRUST_PROXY=true` so
-rate limits apply per caller.
+they are written to the log. Behind API Gateway, `TRUST_PROXY_HOPS=1` so rate
+limits apply per caller and a caller can't fake their address with a header.
+How AWS is set up, what it costs and how to deploy: [`infra/README.md`](../infra/README.md).
 
 Each deployed environment has its own AWS resources, its own secrets in AWS
 Secrets Manager and its own database. Nothing is shared between them, and
@@ -52,8 +53,9 @@ that skips staging.
 
 ## Database migrations across environments
 
-- Migrations run automatically as a step of each deploy, before the new code
-  starts serving traffic.
+- Migrations run automatically before the new code starts: every API and worker
+  container start runs a `migrate` container first, and the app starts only if
+  it succeeds. Migrations take a lock, so overlapping starts are safe.
 - During a deploy the old version keeps running for a moment against the new
   schema, so every migration must be backward compatible: add first, switch the
   code over, and only remove the old column or table in a later release
@@ -67,16 +69,17 @@ that skips staging.
 
 ## Still to set up
 
-These come with the AWS infrastructure step and need repository-admin access:
-
-- [ ] Branch protection on `main`: pull request required, CI must pass.
-- [ ] AWS accounts or isolated stacks for dev, staging and prod (region decision pending).
-- [ ] Deploy pipeline: build once, promote by image, manual approval for prod.
-- [ ] Secrets in AWS Secrets Manager per environment; rotate any keys carried
-      over from the previous version of the app.
+- [x] Branch protection on `main`: pull request required, CI must pass.
+- [x] AWS: a `DettyPot` account in the company's AWS Organization, region eu-west-1.
+- [x] dev environment and its deploy pipeline (every merge to `main`).
+- [ ] staging and prod stacks; promote the same image; manual approval for prod.
+- [x] Secrets in AWS Secrets Manager per environment.
+- [ ] Rotate any keys carried over from the previous version of the app, and the
+      Google key that was shared in chat, before prod.
 - [ ] Separate database roles for migrations and for the running app.
 - [ ] Amazon SES: verified sending domain, `EMAIL_PROVIDER=ses`, bounce handling.
 - [ ] Paystack: test secret key in dev and staging, live key in prod only (the
       app refuses any other combination). Webhook URL per environment set in the
       Paystack dashboard: `https://<api-host>/webhooks/paystack`.
-- [ ] Worker service running `npm run start:worker` next to the API.
+- [x] Worker service running next to the API.
+- [ ] Sign-in: Google and magic link (email and password are live in dev).

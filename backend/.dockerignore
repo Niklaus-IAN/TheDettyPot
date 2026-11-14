@@ -1,0 +1,8 @@
+# Only what the image needs. Secrets and local files never go in.
+*
+!package.json
+!package-lock.json
+!tsconfig.json
+!tsconfig.build.json
+!src/
+!migrations/

@@ -1,0 +1,73 @@
+name: deploy-dev
+
+# Every merge to main that touches the backend or infrastructure goes to dev.
+# AWS credentials come from GitHub's OpenID Connect token: nothing is stored here.
+on:
+  push:
+    branches: [main]
+    paths: ["backend/**", "infra/**", ".github/workflows/deploy-dev.yml"]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+# One deploy at a time; a newer one waits rather than cancelling one halfway.
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: eu-west-1
+  IMAGE_REPOSITORY: dettypot-backend
+
+jobs:
+  deploy:
+    # Graviton containers, built natively on an Arm runner.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push the backend image
+        env:
+          IMAGE: ${{ steps.ecr.outputs.registry }}/${{ env.IMAGE_REPOSITORY }}:${{ github.sha }}
+        run: |
+          # Tags never change once pushed, so a re-run reuses the image.
+          if aws ecr describe-images --repository-name "$IMAGE_REPOSITORY" --image-ids imageTag="$GITHUB_SHA" >/dev/null 2>&1; then
+            echo "Image for $GITHUB_SHA already exists"
+          else
+            docker build --platform linux/arm64 -t "$IMAGE" backend
+            docker push "$IMAGE"
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: infra/package-lock.json
+
+      - name: Deploy
+        working-directory: infra
+        run: |
+          npm ci
+          npx cdk deploy DettyPot-dev -c imageTag="$GITHUB_SHA" --require-approval never --outputs-file outputs.json
+
+      - name: Check it's up
+        working-directory: infra
+        run: |
+          url=$(node -e 'console.log(require("./outputs.json")["DettyPot-dev"].ApiUrl)')
+          for i in $(seq 1 10); do
+            if curl -fsS "$url/health/ready"; then echo; echo "dev is up at $url"; exit 0; fi
+            sleep 6
+          done
+          echo "dev didn't answer /health/ready" >&2
+          exit 1

@@ -57,6 +57,22 @@ describe("rate limits", () => {
     expect(statuses).toEqual([202, 202, 202, 202, 202, 429]);
   });
 
+  it("behind API Gateway, count the address it saw, so a faked header doesn't get round them", async () => {
+    const behind = await makeTestApp({ RATE_LIMIT_ENABLED: "true", TRUST_PROXY_HOPS: "1" });
+    try {
+      // API Gateway appends the caller's real address; anything before it came from the caller.
+      const from = (real: string, i: number) => ({ "x-forwarded-for": `10.0.0.${i}, ${real}` });
+      const send = (real: string, i: number) =>
+        behind.app.inject({ method: "POST", url: "/waitlist", headers: from(real, i), payload: { email: `hop${real}-${i}@example.com` } });
+      const statuses: number[] = [];
+      for (let i = 0; i < 6; i++) statuses.push((await send("203.0.113.7", i)).statusCode);
+      expect(statuses).toEqual([202, 202, 202, 202, 202, 429]);
+      expect((await send("198.51.100.9", 99)).statusCode).toBe(202); // someone else
+    } finally {
+      await behind.close();
+    }
+  });
+
   it("leave other routes under the general limit", async () => {
     const res = await t.app.inject({ method: "GET", url: "/health" });
     expect(res.statusCode).toBe(200);

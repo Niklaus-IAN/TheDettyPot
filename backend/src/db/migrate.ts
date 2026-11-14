@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { sql } from "kysely";
 import { Migrator, type Migration, type MigrationProvider } from "kysely/migration";
 import { loadConfig } from "../config.js";
+import { loadAwsSecrets } from "../secrets.js";
 import { createDb, type Db } from "./index.js";
 
 const MIGRATIONS_DIR = fileURLToPath(new URL("../../migrations", import.meta.url));
@@ -41,6 +42,7 @@ export async function runMigrations(db: Db, dir: string = MIGRATIONS_DIR) {
 
 // Run directly: `npm run db:migrate`
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  await loadAwsSecrets();
   const db = createDb(loadConfig().DATABASE_URL);
   try {
     const results = await runMigrations(db);
