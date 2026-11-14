@@ -123,6 +123,13 @@ export class PaystackError extends Error {
   }
 }
 
+/**
+ * Paystack turned the request down for good (a bad account, not enough
+ * balance). "Slow down" (429) or no answer at all is not a refusal: try later.
+ */
+export const isRefusal = (err: unknown): err is PaystackError =>
+  err instanceof PaystackError && err.httpStatus !== null && err.httpStatus < 500 && err.httpStatus !== 429;
+
 const TIMEOUT_MS = 15_000;
 
 export class HttpPaystackClient implements PaystackClient {

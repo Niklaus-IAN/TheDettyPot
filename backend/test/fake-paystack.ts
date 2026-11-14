@@ -90,7 +90,11 @@ export class FakePaystack implements PaystackClient {
   readonly transfers = new Map<string, TransferInput & { status: string; transferCode: string; feeKobo: number | null }>();
   initiateCalls = 0;
   /** How the next transfer request goes. */
-  transferMode: "pending" | "otp" | "insufficient_balance" | "outage" = "pending";
+  transferMode: "pending" | "otp" | "insufficient_balance" | "outage" | "rate_limited" = "pending";
+  /** When true, account lookups are turned away with a 429, like test mode's daily limit. */
+  resolveRateLimited = false;
+  /** How setting up a transfer recipient goes. */
+  recipientMode: "ok" | "refuse" | "rate_limited" = "ok";
   private nextRecipient = 1;
 
   addAccount(bankCode: string, accountNumber: string, name: string) {
@@ -102,18 +106,22 @@ export class FakePaystack implements PaystackClient {
   }
 
   async resolveAccount(accountNumber: string, bankCode: string): Promise<ResolvedAccount> {
+    if (this.resolveRateLimited) throw new PaystackError("Too many requests: slow down", 429);
     const name = this.accounts.get(`${bankCode}:${accountNumber}`);
     if (!name) throw new PaystackError("Could not resolve account name. Check parameters or try again.", 422);
     return { accountNumber, accountName: name };
   }
 
   async createTransferRecipient(): Promise<string> {
+    if (this.recipientMode === "refuse") throw new PaystackError("Cannot resolve account", 400);
+    if (this.recipientMode === "rate_limited") throw new PaystackError("Too many requests: slow down", 429);
     return `RCP_${this.nextRecipient++}`;
   }
 
   async initiateTransfer(input: TransferInput): Promise<TransferResult> {
     this.initiateCalls++;
     if (this.transferMode === "outage") throw new PaystackError("Paystack unreachable: simulated outage", null);
+    if (this.transferMode === "rate_limited") throw new PaystackError("Too many requests: slow down", 429);
     if (this.transferMode === "insufficient_balance") throw new PaystackError("Your balance is not enough to fulfil this request", 400);
     // Paystack treats the reference as an idempotency key: the same one returns the same transfer.
     const existing = this.transfers.get(input.reference);
@@ -146,11 +154,12 @@ export class FakePaystack implements PaystackClient {
   /** When set, the next refund is created at Paystack but the reply never arrives. */
   loseNextRefundReply = false;
   /** How new refunds start out: most go straight to pending; bank transfers may need the customer's account. */
-  refundMode: "pending" | "needs-attention" | "reject" = "pending";
+  refundMode: "pending" | "needs-attention" | "reject" | "rate_limited" = "pending";
   private nextRefund = 5000;
 
   async createRefund(input: { transactionReference: string; amountKobo: number; merchantNote: string }): Promise<RefundResult> {
     if (this.refundMode === "reject") throw new PaystackError("Refund cannot be processed for this transaction", 400);
+    if (this.refundMode === "rate_limited") throw new PaystackError("Too many requests: slow down", 429);
     const tx = this.transactions.get(input.transactionReference);
     if (!tx || tx.status !== "success") throw new PaystackError("Transaction not found or not successful", 400);
     const id = this.nextRefund++;

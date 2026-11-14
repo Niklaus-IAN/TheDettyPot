@@ -18,6 +18,7 @@ afterAll(async () => {
 });
 beforeEach(() => {
   paystack.refundMode = "pending";
+  paystack.resolveRateLimited = false;
   paystack.transferMode = "pending";
   paystack.loseNextRefundReply = false;
   clearBankCache();
@@ -213,6 +214,9 @@ describe("when the bank needs the member's account", () => {
 
     expect((await h.call(members[1], "POST", `/refunds/${refund!.id}/account`, { bankCode: "058", accountNumber: "2222222222" })).statusCode).toBe(404);
     expect((await h.call(ada, "POST", `/refunds/${refund!.id}/account`, { bankCode: "058", accountNumber: "9999999999" })).json().error.code).toBe("ACCOUNT_NOT_FOUND");
+    paystack.resolveRateLimited = true; // busy is not "not found"
+    expect((await h.call(ada, "POST", `/refunds/${refund!.id}/account`, { bankCode: "058", accountNumber: "2222222222" })).json().error.code).toBe("PAYMENT_PROVIDER_ERROR");
+    paystack.resolveRateLimited = false;
 
     const res = await h.call(ada, "POST", `/refunds/${refund!.id}/account`, { bankCode: "058", accountNumber: "2222222222" });
     expect(res.json()).toEqual({ status: "requested", accountName: "ADA OBI" });
@@ -238,6 +242,22 @@ describe("when a refund can't be done", () => {
     expect(await ledger(organiser, pot.id)).toMatchObject({ availableKobo: naira(25_000), reservedKobo: 0 });
     expect(await h.typesFor(members[0].id, pot.id)).toContain("refund_failed");
     expect((await h.call(admin, "GET", "/admin/refunds?status=failed")).json().map((r: { pot_id: string }) => r.pot_id)).toContain(pot.id);
+  });
+
+  it("tries again later when Paystack asks us to slow down, instead of failing the refund", async () => {
+    const { pot, members } = await scene();
+    const ref = await pay(members[0], pot.id, naira(25_000));
+    paystack.refundMode = "rate_limited";
+    await h.call(members[0], "POST", `/pots/${pot.id}/leave`);
+    const [refund] = await refundsOf(members[0].id, pot.id);
+    expect(refund?.status).toBe("reserved"); // not failed
+    expect(await h.typesFor(members[0].id, pot.id)).not.toContain("refund_failed");
+
+    paystack.refundMode = "pending";
+    await t.db.updateTable("refunds").set({ requested_at: new Date(Date.now() - 11 * 60_000) }).where("id", "=", refund!.id).execute();
+    await progressRefunds(t.db, paystack);
+    expect((await refundsOf(members[0].id, pot.id))[0]?.status).toBe("requested");
+    expect([...paystack.refunds.values()].filter((r) => r.transactionReference === ref)).toHaveLength(1);
   });
 
   it("never refunds twice when Paystack's answer gets lost", async () => {
