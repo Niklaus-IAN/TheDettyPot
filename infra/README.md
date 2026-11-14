@@ -43,6 +43,16 @@ Merging to `main` deploys dev (`.github/workflows/deploy-dev.yml`) when it touch
 
 You can also run it from the Actions tab (**deploy-dev → Run workflow**). An environment only exists in the CDK app when an `imageTag` is given, so a deploy without one can't put the wrong code live.
 
+## Trying dev yourself
+
+There are no app screens yet, so you test through the API docs page:
+
+1. `node infra/scripts/dev-signin.mjs`. It signs you in, or creates your dev account first (Cognito emails you a code). No AWS login needed.
+2. Open `https://li5qj4kuaa.execute-api.eu-west-1.amazonaws.com/docs`, click **Authorize**, and paste the token it printed.
+3. Try `GET /me`, then create a pot, search venues, ask the planner, and so on.
+
+Tokens last an hour; run the script again for a new one. Dev is for testing: its data can be wiped, and payments use Paystack's test mode (test card `4084 0840 8408 4081`, any future expiry, CVV `408`, PIN `0000`, OTP `123456`).
+
 ## Changing keys
 
 ```
